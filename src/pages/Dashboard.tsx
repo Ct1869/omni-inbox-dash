@@ -42,10 +42,19 @@ const Dashboard = () => {
 
   // Check authentication
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    if (!token) {
-      navigate("/login");
-    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/auth");
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        navigate("/auth");
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   // Handle OAuth callback
@@ -78,31 +87,32 @@ const Dashboard = () => {
     }
   };
 
-  const initiateGmailOAuth = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          scopes: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
-          redirectTo: `${window.location.origin}/dashboard`,
-        }
-      });
-
-      if (error) {
-        toast.error("Failed to initiate Google sign-in");
-        console.error(error);
-      }
-    } catch (error) {
-      console.error("OAuth error:", error);
-      toast.error("Failed to connect Gmail account");
+  const initiateGmailOAuth = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      toast.error("Please add VITE_GOOGLE_CLIENT_ID to your environment variables");
+      console.error("Missing VITE_GOOGLE_CLIENT_ID - Please add your Google OAuth Client ID");
+      return;
     }
+
+    const redirectUri = `${window.location.origin}/dashboard`;
+    const scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
+    
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope,
+      access_type: "offline",
+      prompt: "consent",
+    })}`;
+
+    window.location.href = authUrl;
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userEmail");
-    localStorage.removeItem("userRole");
-    navigate("/login");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
   };
 
   return (
