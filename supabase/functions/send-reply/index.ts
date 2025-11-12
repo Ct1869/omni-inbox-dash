@@ -28,16 +28,23 @@ async function refreshAccessToken(refreshToken: string) {
   return await response.json();
 }
 
-function createEmailMessage(to: string, from: string, subject: string, body: string, threadId?: string) {
-  const message = [
+function createEmailMessage(to: string, from: string, subject: string, body: string, inReplyTo?: string, references?: string) {
+  const headers = [
     `To: ${to}`,
     `From: ${from}`,
     `Subject: ${subject}`,
     "MIME-Version: 1.0",
     "Content-Type: text/html; charset=UTF-8",
-    "",
-    body
-  ].join("\r\n");
+  ];
+
+  if (inReplyTo) {
+    headers.push(`In-Reply-To: ${inReplyTo}`);
+  }
+  if (references) {
+    headers.push(`References: ${references}`);
+  }
+
+  const message = [...headers, "", body].join("\r\n");
 
   // Base64url encode
   return btoa(message)
@@ -57,35 +64,42 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { accountId, to, subject, body, threadId } = await req.json();
+    const { accountId, messageId, replyText, forwardTo, action } = await req.json();
 
-    if (!accountId || !to || !subject || !body) {
-      throw new Error("Missing required fields");
+    if (!accountId) {
+      throw new Error("Missing accountId");
     }
 
     // Get account and tokens
-    const { data: account } = await supabase
+    const { data: account, error: accountError } = await supabase
       .from("email_accounts")
-      .select("*, oauth_tokens(*)")
+      .select("email")
       .eq("id", accountId)
       .single();
 
-    if (!account || !account.oauth_tokens) {
-      throw new Error("Account or tokens not found");
+    if (accountError || !account) {
+      throw new Error("Account not found");
     }
 
-    const tokens = account.oauth_tokens;
-    
-    // Check if token is expired
+    const { data: tokens, error: tokensError } = await supabase
+      .from("oauth_tokens")
+      .select("*")
+      .eq("account_id", accountId)
+      .single();
+
+    if (tokensError || !tokens) {
+      throw new Error("OAuth tokens not found");
+    }
+
+    // Check if token is expired and refresh if needed
     let accessToken = tokens.access_token;
     const expiresAt = new Date(tokens.expires_at);
-    
+
     if (expiresAt < new Date()) {
       console.log("Token expired, refreshing...");
       const newTokens = await refreshAccessToken(tokens.refresh_token);
       accessToken = newTokens.access_token;
-      
-      // Update stored tokens
+
       await supabase
         .from("oauth_tokens")
         .update({
@@ -95,18 +109,106 @@ serve(async (req) => {
         .eq("account_id", accountId);
     }
 
-    // Create email message
+    // Handle different actions
+    if (action === "delete") {
+      // Delete (trash) the message in Gmail
+      if (!messageId) throw new Error("Missing messageId");
+
+      const { data: msg } = await supabase
+        .from("cached_messages")
+        .select("message_id")
+        .eq("id", messageId)
+        .single();
+
+      if (!msg) throw new Error("Message not found");
+
+      const trashResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.message_id}/trash`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (!trashResponse.ok) {
+        throw new Error("Failed to delete message");
+      }
+
+      // Mark as deleted in our DB
+      await supabase
+        .from("cached_messages")
+        .delete()
+        .eq("id", messageId);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get the original message for reply/forward
+    if (!messageId) throw new Error("Missing messageId");
+
+    const { data: originalMessage, error: msgError } = await supabase
+      .from("cached_messages")
+      .select("*")
+      .eq("id", messageId)
+      .single();
+
+    if (msgError || !originalMessage) {
+      throw new Error("Original message not found");
+    }
+
+    let to: string;
+    let subject: string;
+    let body: string;
+    let inReplyTo: string | undefined;
+    let references: string | undefined;
+
+    if (forwardTo) {
+      // Forward
+      to = forwardTo;
+      subject = `Fwd: ${originalMessage.subject || "(no subject)"}`;
+      body = `
+        <p>---------- Forwarded message ---------</p>
+        <p>From: ${originalMessage.sender_name} &lt;${originalMessage.sender_email}&gt;</p>
+        <p>Date: ${originalMessage.received_at}</p>
+        <p>Subject: ${originalMessage.subject}</p>
+        <hr>
+        ${originalMessage.body_html || originalMessage.body_text || ""}
+      `;
+    } else if (replyText) {
+      // Reply
+      to = originalMessage.sender_email;
+      subject = originalMessage.subject?.startsWith("Re:") 
+        ? originalMessage.subject 
+        : `Re: ${originalMessage.subject || "(no subject)"}`;
+      body = `
+        <p>${replyText.replace(/\n/g, "<br>")}</p>
+        <br>
+        <p>On ${originalMessage.received_at}, ${originalMessage.sender_name} wrote:</p>
+        <blockquote style="margin-left: 1em; padding-left: 1em; border-left: 2px solid #ccc;">
+          ${originalMessage.body_html || originalMessage.body_text || ""}
+        </blockquote>
+      `;
+      inReplyTo = originalMessage.message_id;
+      references = originalMessage.message_id;
+    } else {
+      throw new Error("Missing replyText or forwardTo");
+    }
+
+    // Create and send email
     const encodedMessage = createEmailMessage(
       to,
       account.email,
       subject,
       body,
-      threadId
+      inReplyTo,
+      references
     );
 
-    // Send via Gmail API
-    const sendUrl = threadId 
-      ? `https://gmail.googleapis.com/gmail/v1/users/me/messages/send?threadId=${threadId}`
+    const sendUrl = originalMessage.thread_id
+      ? `https://gmail.googleapis.com/gmail/v1/users/me/messages/send?threadId=${originalMessage.thread_id}`
       : "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
 
     const sendResponse = await fetch(sendUrl, {
@@ -117,7 +219,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         raw: encodedMessage,
-        threadId: threadId || undefined,
+        threadId: originalMessage.thread_id || undefined,
       }),
     });
 

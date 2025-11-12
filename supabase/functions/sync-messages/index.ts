@@ -120,22 +120,38 @@ serve(async (req) => {
         const senderName = fromMatch[1]?.trim() || "";
         const senderEmail = fromMatch[2]?.trim() || from;
 
-        // Get message body
+        // Get message body - handle nested parts recursively
         let bodyHtml = "";
-        let bodyText = detail.snippet || "";
-
-        if (detail.payload.parts) {
-          for (const part of detail.payload.parts) {
-            if (part.mimeType === "text/html" && part.body.data) {
-              bodyHtml = atob(part.body.data.replace(/-/g, "+").replace(/_/g, "/"));
-            } else if (part.mimeType === "text/plain" && part.body.data) {
-              bodyText = atob(part.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+        let bodyText = "";
+        
+        function extractBody(payload: any) {
+          if (payload.body?.data) {
+            const decoded = atob(payload.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+            if (payload.mimeType === "text/html") {
+              bodyHtml = bodyHtml || decoded;
+            } else if (payload.mimeType === "text/plain") {
+              bodyText = bodyText || decoded;
             }
           }
+          
+          if (payload.parts) {
+            for (const part of payload.parts) {
+              extractBody(part);
+            }
+          }
+        }
+        
+        extractBody(detail.payload);
+        
+        // Fallback to snippet if no body found
+        if (!bodyHtml && !bodyText) {
+          bodyText = detail.snippet || "";
         }
 
         const isUnread = detail.labelIds?.includes("UNREAD") || false;
         const isStarred = detail.labelIds?.includes("STARRED") || false;
+        const hasAttachments = detail.payload.parts?.some((p: any) => p.filename) || false;
+        const attachmentCount = detail.payload.parts?.filter((p: any) => p.filename).length || 0;
 
         // Upsert message
         await supabase
@@ -153,6 +169,8 @@ serve(async (req) => {
             body_text: bodyText,
             is_read: !isUnread,
             is_starred: isStarred,
+            has_attachments: hasAttachments,
+            attachment_count: attachmentCount,
             labels: detail.labelIds || [],
             received_at: new Date(date || Date.now()).toISOString(),
           }, {

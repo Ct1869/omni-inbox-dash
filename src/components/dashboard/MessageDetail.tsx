@@ -22,9 +22,10 @@ import { supabase } from "@/integrations/supabase/client";
 interface MessageDetailProps {
   message: Message | null;
   accountId?: string;
+  onMessageDeleted?: () => void;
 }
 
-const MessageDetail = ({ message, accountId }: MessageDetailProps) => {
+const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailProps) => {
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -37,6 +38,16 @@ const MessageDetail = ({ message, accountId }: MessageDetailProps) => {
   const [attachmentCount, setAttachmentCount] = useState<number>(0);
   const { toast } = useToast();
 
+  const getInitials = (name: string) => {
+    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  };
+
+  const formattedDate = useMemo(() => {
+    if (!message) return '';
+    const d = receivedAt ? new Date(receivedAt) : new Date(message.date);
+    return d.toLocaleString();
+  }, [receivedAt, message]);
+
   useEffect(() => {
     const loadFullMessage = async () => {
       if (!message) return;
@@ -46,7 +57,7 @@ const MessageDetail = ({ message, accountId }: MessageDetailProps) => {
           .from('cached_messages')
           .select('body_html, body_text, recipient_emails, received_at, has_attachments, attachment_count')
           .eq('id', message.id)
-          .single();
+          .maybeSingle();
         if (error) throw error;
         setBodyHtml(data?.body_html ?? null);
         setBodyText(data?.body_text ?? null);
@@ -63,7 +74,69 @@ const MessageDetail = ({ message, accountId }: MessageDetailProps) => {
     };
 
     loadFullMessage();
-  }, [message]);
+  }, [message, toast]);
+
+  const handleReply = async () => {
+    if (!replyText.trim() || !message || !accountId) return;
+    setIsSending(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-reply', {
+        body: {
+          accountId,
+          messageId: message.id,
+          replyText,
+        },
+      });
+      if (error) throw error;
+      toast({ title: 'Reply sent successfully' });
+      setReplyText('');
+      setIsReplying(false);
+    } catch (err: any) {
+      console.error('Send reply error:', err);
+      toast({ title: 'Failed to send reply', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleForward = async () => {
+    const email = prompt('Forward to (email):');
+    if (!email || !message || !accountId) return;
+    try {
+      const { error } = await supabase.functions.invoke('send-reply', {
+        body: {
+          accountId,
+          messageId: message.id,
+          forwardTo: email,
+        },
+      });
+      if (error) throw error;
+      toast({ title: 'Message forwarded' });
+    } catch (err: any) {
+      console.error('Forward error:', err);
+      toast({ title: 'Failed to forward', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!message || !accountId) return;
+    if (!confirm('Move this message to trash?')) return;
+    try {
+      const { error } = await supabase.functions.invoke('send-reply', {
+        body: {
+          accountId,
+          messageId: message.id,
+          action: 'delete',
+        },
+      });
+      if (error) throw error;
+      toast({ title: 'Message deleted' });
+      onMessageDeleted?.();
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      toast({ title: 'Failed to delete', description: err.message, variant: 'destructive' });
+    }
+  };
 
   if (!message) {
     return (
@@ -80,15 +153,6 @@ const MessageDetail = ({ message, accountId }: MessageDetailProps) => {
       </div>
     );
   }
-
-  const getInitials = (name: string) => {
-    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
-  const formattedDate = useMemo(() => {
-    const d = receivedAt ? new Date(receivedAt) : new Date(message.date);
-    return d.toLocaleString();
-  }, [receivedAt, message.date]);
 
   return (
     <div className="flex-1 flex flex-col bg-background">
@@ -122,10 +186,13 @@ const MessageDetail = ({ message, accountId }: MessageDetailProps) => {
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Star className={cn("h-4 w-4", message.isFlagged && "fill-accent text-accent")} />
             </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleForward} title="Forward">
+              <Forward className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Archive className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={handleDelete} title="Delete">
               <Trash2 className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -141,11 +208,45 @@ const MessageDetail = ({ message, accountId }: MessageDetailProps) => {
           {loading ? (
             <div className="text-sm text-muted-foreground">Loading message…</div>
           ) : bodyHtml ? (
-            <article className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+            <article className="prose prose-sm prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
           ) : bodyText ? (
             <pre className="whitespace-pre-wrap text-sm text-foreground">{bodyText}</pre>
           ) : (
             <div className="text-sm text-muted-foreground">No content available.</div>
+          )}
+
+          {/* Reply Section */}
+          {!isReplying ? (
+            <div className="mt-8">
+              <Button onClick={() => setIsReplying(true)} className="w-full">
+                <Reply className="w-4 h-4 mr-2" />
+                Reply
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-8 space-y-4">
+              <Textarea
+                placeholder="Type your reply..."
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                className="min-h-32 bg-input border-border"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setIsReplying(false);
+                    setReplyText('');
+                  }}
+                  disabled={isSending}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleReply} disabled={!replyText.trim() || isSending}>
+                  {isSending ? 'Sending...' : 'Send Reply'}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </ScrollArea>
