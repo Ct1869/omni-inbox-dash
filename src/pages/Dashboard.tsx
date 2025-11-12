@@ -39,6 +39,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterFlagged, setFilterFlagged] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Check authentication
   useEffect(() => {
@@ -121,6 +122,7 @@ const Dashboard = () => {
           setSelectedMessage(null);
         }}
         onConnectGmail={initiateGmailOAuth}
+        onRefresh={() => setRefreshTrigger(prev => prev + 1)}
       />
       
       <MessageList
@@ -130,6 +132,7 @@ const Dashboard = () => {
         searchQuery={searchQuery}
         filterUnread={filterUnread}
         filterFlagged={filterFlagged}
+        refreshTrigger={refreshTrigger}
       />
       
       <MessageDetail

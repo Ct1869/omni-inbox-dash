@@ -27,13 +27,34 @@ interface AccountsSidebarProps {
   selectedAccount: Account | null;
   onSelectAccount: (account: Account) => void;
   onConnectGmail: () => void;
+  onRefresh: () => void;
 }
 
-const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail }: AccountsSidebarProps) => {
+const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onRefresh }: AccountsSidebarProps) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const userEmail = localStorage.getItem("userEmail") || "user@email.com";
   const userName = userEmail.split("@")[0];
+
+  const handleSyncNow = async () => {
+    if (!selectedAccount || isSyncing) return;
+    setIsSyncing(true);
+    toast.loading("Syncing messages...", { id: "sync" });
+    try {
+      const { error } = await supabase.functions.invoke("sync-messages", {
+        body: { accountId: selectedAccount.id },
+      });
+      if (error) throw error;
+      toast.success("Messages synced successfully", { id: "sync" });
+      onRefresh();
+    } catch (err: any) {
+      console.error("Sync error:", err);
+      toast.error(err.message || "Failed to sync messages", { id: "sync" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -66,18 +87,6 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail }: A
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  const navItems = [
-    { icon: Inbox, label: "Inbox", count: 281, active: true },
-    { icon: Star, label: "Favorites", count: 0 },
-    { icon: FileText, label: "Drafts", count: 13 },
-    { icon: Send, label: "Sent", count: 0 },
-  ];
-
-  const managementItems = [
-    { icon: Archive, label: "Archive", count: 0 },
-    { icon: AlertCircle, label: "Spam", count: 24 },
-    { icon: Trash2, label: "Bin", count: 0 },
-  ];
 
   return (
     <aside className="w-64 bg-background border-r border-border flex flex-col">
@@ -116,55 +125,21 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail }: A
       {/* Navigation */}
       <ScrollArea className="flex-1 scrollbar-thin">
         <div className="p-2">
-          {/* Core Section */}
-          <div className="mb-4">
-            <div className="px-3 py-2 text-xs font-medium text-muted-foreground">Core</div>
-            <div className="space-y-0.5">
-              {navItems.map((item) => (
-                <button
-                  key={item.label}
-                  className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
-                    item.active 
-                      ? "bg-selected-bg text-foreground" 
-                      : "text-muted-foreground hover:bg-hover-bg hover:text-foreground"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.count > 0 && (
-                    <span className="text-xs text-muted-foreground">{item.count}</span>
-                  )}
-                </button>
-              ))}
+          {/* Sync Button */}
+          {selectedAccount && (
+            <div className="mb-4 px-1">
+              <Button
+                onClick={handleSyncNow}
+                disabled={isSyncing}
+                variant="outline"
+                className="w-full justify-start"
+                size="sm"
+              >
+                <RefreshCcw className={cn("h-4 w-4 mr-2", isSyncing && "animate-spin")} />
+                {isSyncing ? "Syncing..." : "Sync Now"}
+              </Button>
             </div>
-          </div>
-
-          {/* Management Section */}
-          <div className="mb-4">
-            <button className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground">
-              <span>Management</span>
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            <div className="space-y-0.5">
-              {managementItems.map((item) => (
-                <button
-                  key={item.label}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-hover-bg hover:text-foreground transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.count > 0 && (
-                    <span className="text-xs">{item.count}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* Accounts Section */}
           <div>

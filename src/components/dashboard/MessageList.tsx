@@ -30,6 +30,7 @@ interface MessageListProps {
   searchQuery: string;
   filterUnread: boolean;
   filterFlagged: boolean;
+  refreshTrigger: number;
 }
 
 const MessageList = ({
@@ -39,6 +40,7 @@ const MessageList = ({
   searchQuery,
   filterUnread,
   filterFlagged,
+  refreshTrigger,
 }: MessageListProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -81,7 +83,7 @@ const MessageList = ({
     };
 
     fetchMessages();
-  }, [selectedAccount]);
+  }, [selectedAccount, refreshTrigger]);
 
   const filteredMessages = messages.filter((msg) => {
     const query = (searchQuery || localSearch).toLowerCase();
@@ -93,9 +95,6 @@ const MessageList = ({
     if (filterFlagged && !msg.isFlagged) return false;
     return true;
   });
-
-  const pinnedMessages = filteredMessages.slice(0, 3);
-  const regularMessages = filteredMessages.slice(3);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -153,34 +152,11 @@ const MessageList = ({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search"
+            placeholder="Search messages..."
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
             className="pl-9 bg-input border-border h-9"
           />
-          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-            ⌘K
-          </kbd>
-        </div>
-
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-2">
-          <Button variant="default" size="sm" className="h-8">
-            <Zap className="h-3 w-3 mr-1" />
-            Primary
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Bell className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Users className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Users className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Tag className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 
@@ -192,43 +168,27 @@ const MessageList = ({
               <div key={i} className="h-20 bg-muted/20 animate-pulse rounded-md" />
             ))}
           </div>
+        ) : filteredMessages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-center p-8">
+            <div>
+              <Inbox className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                {messages.length === 0 ? "No messages yet. Click 'Sync Now' to fetch emails." : "No messages match your filters"}
+              </p>
+            </div>
+          </div>
         ) : (
           <div>
-            {/* Pinned Section */}
-            {pinnedMessages.length > 0 && (
-              <div className="border-b border-border">
-                <div className="px-4 py-2 text-xs font-medium text-muted-foreground">
-                  Pinned [{pinnedMessages.length}]
-                </div>
-                {pinnedMessages.map((message) => (
-                  <MessageItem
-                    key={message.id}
-                    message={message}
-                    isSelected={selectedMessage?.id === message.id}
-                    onClick={() => onSelectMessage(message)}
-                    formatDate={formatDate}
-                    getInitials={getInitials}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Primary Section */}
-            <div>
-              <div className="px-4 py-2 text-xs font-medium text-muted-foreground">
-                Primary [{regularMessages.length}]
-              </div>
-              {regularMessages.map((message) => (
-                <MessageItem
-                  key={message.id}
-                  message={message}
-                  isSelected={selectedMessage?.id === message.id}
-                  onClick={() => onSelectMessage(message)}
-                  formatDate={formatDate}
-                  getInitials={getInitials}
-                />
-              ))}
-            </div>
+            {filteredMessages.map((message) => (
+              <MessageItem
+                key={message.id}
+                message={message}
+                isSelected={selectedMessage?.id === message.id}
+                onClick={() => onSelectMessage(message)}
+                formatDate={formatDate}
+                getInitials={getInitials}
+              />
+            ))}
           </div>
         )}
       </ScrollArea>
