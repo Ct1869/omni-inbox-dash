@@ -69,6 +69,10 @@ export default {
         hover: {
           bg: "hsl(var(--hover-bg))",
         },
+        "ai-summary": {
+          border: "hsl(var(--ai-summary-border))",
+          bg: "hsl(var(--ai-summary-bg))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

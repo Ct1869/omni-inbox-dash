@@ -53,40 +53,28 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <DashboardHeader
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        filterUnread={filterUnread}
-        onFilterUnreadChange={setFilterUnread}
-        filterFlagged={filterFlagged}
-        onFilterFlaggedChange={setFilterFlagged}
-        onLogout={handleLogout}
+    <div className="h-screen flex overflow-hidden bg-background">
+      <AccountsSidebar
+        selectedAccount={selectedAccount}
+        onSelectAccount={(account) => {
+          setSelectedAccount(account);
+          setSelectedMessage(null);
+        }}
       />
       
-      <div className="flex-1 flex overflow-hidden">
-        <AccountsSidebar
-          selectedAccount={selectedAccount}
-          onSelectAccount={(account) => {
-            setSelectedAccount(account);
-            setSelectedMessage(null);
-          }}
-        />
-        
-        <MessageList
-          selectedAccount={selectedAccount}
-          selectedMessage={selectedMessage}
-          onSelectMessage={setSelectedMessage}
-          searchQuery={searchQuery}
-          filterUnread={filterUnread}
-          filterFlagged={filterFlagged}
-        />
-        
-        <MessageDetail
-          message={selectedMessage}
-          accountId={selectedAccount?.id}
-        />
-      </div>
+      <MessageList
+        selectedAccount={selectedAccount}
+        selectedMessage={selectedMessage}
+        onSelectMessage={setSelectedMessage}
+        searchQuery={searchQuery}
+        filterUnread={filterUnread}
+        filterFlagged={filterFlagged}
+      />
+      
+      <MessageDetail
+        message={selectedMessage}
+        accountId={selectedAccount?.id}
+      />
     </div>
   );
 };
