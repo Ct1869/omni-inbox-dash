@@ -11,25 +11,17 @@ import {
   Trash2,
   ChevronDown,
   Plus,
-  MoreHorizontal
+  MoreHorizontal,
+  RefreshCcw
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Account } from "@/pages/Dashboard";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
-// Mock data - replace with actual API call
-const generateMockAccounts = (): Account[] => {
-  const domains = ["company1.com", "company2.com", "startup.io", "enterprise.net", "agency.co"];
-  const names = ["Tech Corp", "Innovate Inc", "Digital Agency", "Enterprise Solutions", "Creative Studio"];
-  
-  return Array.from({ length: 25 }, (_, i) => ({
-    id: `account-${i + 1}`,
-    name: `${names[i % names.length]} ${Math.floor(i / 5) + 1}`,
-    email: `client${i + 1}@${domains[i % domains.length]}`,
-    unreadCount: Math.floor(Math.random() * 50),
-  }));
-};
+
 
 interface AccountsSidebarProps {
   selectedAccount: Account | null;
@@ -44,10 +36,30 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail }: A
   const userName = userEmail.split("@")[0];
 
   useEffect(() => {
-    setTimeout(() => {
-      setAccounts(generateMockAccounts());
-      setIsLoading(false);
-    }, 500);
+    const fetchAccounts = async () => {
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('email_accounts')
+          .select('id, name, email, unread_count')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const mapped: Account[] = (data || []).map((a: any) => ({
+          id: a.id,
+          name: a.name || a.email,
+          email: a.email,
+          unreadCount: a.unread_count ?? 0,
+        }));
+        setAccounts(mapped);
+      } catch (err) {
+        console.error('Load accounts error:', err);
+        toast.error('Failed to load accounts');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAccounts();
   }, []);
 
   const getInitials = (name: string) => {

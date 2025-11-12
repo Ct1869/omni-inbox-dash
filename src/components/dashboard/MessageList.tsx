@@ -19,46 +19,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Account, Message } from "@/pages/Dashboard";
+import { supabase } from "@/integrations/supabase/client";
 
-// Mock data generator
-const generateMockMessages = (accountId: string): Message[] => {
-  const subjects = [
-    "Q4 Report Review",
-    "Meeting Follow-up",
-    "Project Update Required",
-    "Invoice #12345",
-    "Weekly Newsletter",
-    "Security Alert",
-    "Team Lunch Tomorrow",
-    "Contract Renewal",
-    "Design review feedback",
-    "Payment confirmation",
-  ];
-  
-  const senders = [
-    { name: "John Smith", email: "john@client.com" },
-    { name: "Sarah Johnson", email: "sarah@partner.com" },
-    { name: "Mike Williams", email: "mike@vendor.com" },
-    { name: "Emily Davis", email: "emily@company.com" },
-    { name: "Ali Mamedgasanov", email: "ali@baked.design" },
-    { name: "Stripe", email: "no-reply@stripe.com" },
-    { name: "Netflix", email: "info@netflix.com" },
-  ];
 
-  return Array.from({ length: 50 }, (_, i) => ({
-    id: `msg-${accountId}-${i}`,
-    accountId,
-    threadId: `thread-${Math.floor(i / 3)}`,
-    from: senders[i % senders.length],
-    subject: `${subjects[i % subjects.length]} - ${i + 1}`,
-    preview: "This is a preview of the email message content that will be displayed in the list...",
-    date: new Date(Date.now() - i * 3600000).toISOString(),
-    isUnread: i < 10,
-    isFlagged: i % 7 === 0,
-    hasAttachments: i % 5 === 0,
-    labels: ["Inbox", i % 3 === 0 ? "Important" : ""],
-  }));
-};
 
 interface MessageListProps {
   selectedAccount: Account | null;
@@ -82,15 +45,42 @@ const MessageList = ({
   const [localSearch, setLocalSearch] = useState("");
 
   useEffect(() => {
-    if (selectedAccount) {
+    const fetchMessages = async () => {
+      if (!selectedAccount) {
+        setMessages([]);
+        return;
+      }
       setIsLoading(true);
-      setTimeout(() => {
-        setMessages(generateMockMessages(selectedAccount.id));
+      try {
+        const { data, error } = await supabase
+          .from('cached_messages')
+          .select('id, account_id, thread_id, sender_name, sender_email, subject, snippet, received_at, is_read, is_starred, has_attachments, labels')
+          .eq('account_id', selectedAccount.id)
+          .order('received_at', { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        const mapped: Message[] = (data || []).map((m: any) => ({
+          id: m.id,
+          accountId: m.account_id,
+          threadId: m.thread_id || '',
+          from: { name: m.sender_name || m.sender_email, email: m.sender_email },
+          subject: m.subject || '(no subject)',
+          preview: m.snippet || '',
+          date: m.received_at,
+          isUnread: !m.is_read,
+          isFlagged: m.is_starred,
+          hasAttachments: m.has_attachments,
+          labels: m.labels || [],
+        }));
+        setMessages(mapped);
+      } catch (err) {
+        console.error('Load messages error:', err);
+      } finally {
         setIsLoading(false);
-      }, 300);
-    } else {
-      setMessages([]);
-    }
+      }
+    };
+
+    fetchMessages();
   }, [selectedAccount]);
 
   const filteredMessages = messages.filter((msg) => {
