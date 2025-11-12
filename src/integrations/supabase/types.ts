@@ -14,16 +14,275 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cached_messages: {
+        Row: {
+          account_id: string
+          attachment_count: number
+          body_html: string | null
+          body_text: string | null
+          created_at: string
+          has_attachments: boolean
+          id: string
+          is_pinned: boolean
+          is_read: boolean
+          is_starred: boolean
+          labels: string[] | null
+          message_id: string
+          received_at: string
+          recipient_emails: string[] | null
+          sender_email: string
+          sender_name: string | null
+          snippet: string | null
+          subject: string | null
+          thread_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          attachment_count?: number
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string
+          has_attachments?: boolean
+          id?: string
+          is_pinned?: boolean
+          is_read?: boolean
+          is_starred?: boolean
+          labels?: string[] | null
+          message_id: string
+          received_at: string
+          recipient_emails?: string[] | null
+          sender_email: string
+          sender_name?: string | null
+          snippet?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          attachment_count?: number
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string
+          has_attachments?: boolean
+          id?: string
+          is_pinned?: boolean
+          is_read?: boolean
+          is_starred?: boolean
+          labels?: string[] | null
+          message_id?: string
+          received_at?: string
+          recipient_emails?: string[] | null
+          sender_email?: string
+          sender_name?: string | null
+          snippet?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cached_messages_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_accounts: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          last_synced_at: string | null
+          name: string | null
+          picture_url: string | null
+          provider: Database["public"]["Enums"]["account_provider"]
+          unread_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string | null
+          name?: string | null
+          picture_url?: string | null
+          provider?: Database["public"]["Enums"]["account_provider"]
+          unread_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string | null
+          name?: string | null
+          picture_url?: string | null
+          provider?: Database["public"]["Enums"]["account_provider"]
+          unread_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      oauth_tokens: {
+        Row: {
+          access_token: string
+          account_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          refresh_token: string
+          scope: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          account_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          refresh_token: string
+          scope?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          account_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          refresh_token?: string
+          scope?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oauth_tokens_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sync_jobs: {
+        Row: {
+          account_id: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          messages_synced: number | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["sync_status"]
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          messages_synced?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["sync_status"]
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          messages_synced?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["sync_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_jobs_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      account_provider: "gmail"
+      app_role: "viewer" | "responder" | "admin"
+      sync_status: "pending" | "processing" | "completed" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +409,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_provider: ["gmail"],
+      app_role: ["viewer", "responder", "admin"],
+      sync_status: ["pending", "processing", "completed", "failed"],
+    },
   },
 } as const
