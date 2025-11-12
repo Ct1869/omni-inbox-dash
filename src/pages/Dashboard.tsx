@@ -74,8 +74,10 @@ const Dashboard = () => {
         return;
       }
 
+      const redirectUri = `${window.location.origin}/dashboard`;
+      
       const { data, error } = await supabase.functions.invoke("gmail-oauth", {
-        body: { code },
+        body: { code, redirectUri },
       });
 
       if (error) throw error;

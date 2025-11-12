@@ -17,15 +17,18 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { code } = await req.json();
+    const { code, redirectUri } = await req.json();
     
     if (!code) {
       throw new Error("Authorization code is required");
     }
 
+    if (!redirectUri) {
+      throw new Error("Redirect URI is required");
+    }
+
     const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
     const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
-    const redirectUri = `${new URL(req.url).origin}/dashboard`;
 
     // Exchange code for tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
