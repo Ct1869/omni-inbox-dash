@@ -93,7 +93,7 @@ const Dashboard = () => {
     const clientId = "392918695055-nord9i04nlslrmeea8r8h6c9ghspi48l.apps.googleusercontent.com";
 
     const redirectUri = `${window.location.origin}/dashboard`;
-    const scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
+    const scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid";
     
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
       client_id: clientId,
