@@ -88,12 +88,7 @@ const Dashboard = () => {
   };
 
   const initiateGmailOAuth = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      toast.error("Please add VITE_GOOGLE_CLIENT_ID to your environment variables");
-      console.error("Missing VITE_GOOGLE_CLIENT_ID - Please add your Google OAuth Client ID");
-      return;
-    }
+    const clientId = "392918695055-nord9i04nlslrmeea8r8h6c9ghspi48l.apps.googleusercontent.com";
 
     const redirectUri = `${window.location.origin}/dashboard`;
     const scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
