@@ -78,26 +78,24 @@ const Dashboard = () => {
     }
   };
 
-  const initiateGmailOAuth = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      toast.error("Google OAuth not configured");
-      return;
+  const initiateGmailOAuth = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          scopes: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+          redirectTo: `${window.location.origin}/dashboard`,
+        }
+      });
+
+      if (error) {
+        toast.error("Failed to initiate Google sign-in");
+        console.error(error);
+      }
+    } catch (error) {
+      console.error("OAuth error:", error);
+      toast.error("Failed to connect Gmail account");
     }
-
-    const redirectUri = `${window.location.origin}/dashboard`;
-    const scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
-    
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: "code",
-      scope,
-      access_type: "offline",
-      prompt: "consent",
-    })}`;
-
-    window.location.href = authUrl;
   };
 
   const handleLogout = () => {
