@@ -34,9 +34,10 @@ const generateMockAccounts = (): Account[] => {
 interface AccountsSidebarProps {
   selectedAccount: Account | null;
   onSelectAccount: (account: Account) => void;
+  onConnectGmail: () => void;
 }
 
-const AccountsSidebar = ({ selectedAccount, onSelectAccount }: AccountsSidebarProps) => {
+const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail }: AccountsSidebarProps) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const userEmail = localStorage.getItem("userEmail") || "user@email.com";
@@ -80,7 +81,13 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount }: AccountsSidebarPr
             <div className="font-medium text-sm truncate">{userName}</div>
             <div className="text-xs text-muted-foreground truncate">{userEmail}</div>
           </div>
-          <Button variant="ghost" size="icon" className="h-6 w-6">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6"
+            onClick={onConnectGmail}
+            title="Connect Gmail account"
+          >
             <Plus className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6">
