@@ -127,7 +127,7 @@ serve(async (req) => {
       .from("sync_jobs")
       .insert({
         account_id: account.id,
-        status: "running",
+        status: "processing",
         started_at: new Date().toISOString(),
       })
       .select()
@@ -141,8 +141,30 @@ serve(async (req) => {
     );
 
     if (!historyResponse.ok) {
-      console.error("Failed to fetch history:", await historyResponse.text());
-      // Mark sync job as failed
+      const errorText = await historyResponse.text();
+      console.error("Failed to fetch history:", errorText);
+      
+      // If 404, history ID is too old - trigger full sync instead
+      if (historyResponse.status === 404) {
+        console.log("History ID too old, triggering full sync...");
+        
+        // Delete the invalid sync job
+        if (syncJob) {
+          await supabase.from("sync_jobs").delete().eq("id", syncJob.id);
+        }
+        
+        // Create a pending sync job for sync-messages to handle
+        await supabase.from("sync_jobs").insert({
+          account_id: account.id,
+          status: "pending",
+        });
+        
+        return new Response(JSON.stringify({ success: true, triggeredFullSync: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      // Other errors - mark as failed
       if (syncJob) {
         await supabase
           .from("sync_jobs")
