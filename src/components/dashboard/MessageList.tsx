@@ -426,7 +426,7 @@ const MessageList = ({
       </div>
 
       {/* Messages List */}
-      <ScrollArea className="flex-1 scrollbar-thin">
+      <ScrollArea className="flex-1 scrollbar-thin" onScroll={handleScroll}>
         {isLoading && messages.length === 0 ? (
           <div className="p-2 space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
