@@ -25,12 +25,13 @@ import { toast } from "sonner";
 
 interface AccountsSidebarProps {
   selectedAccount: Account | null;
-  onSelectAccount: (account: Account) => void;
+  onSelectAccount: (account: Account | null) => void;
   onConnectGmail: () => void;
   onRefresh: () => void;
+  onCompose: () => void;
 }
 
-const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onRefresh }: AccountsSidebarProps) => {
+const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onRefresh, onCompose }: AccountsSidebarProps) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -115,57 +116,83 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </div>
-        
-        <Button className="w-full justify-start bg-secondary hover:bg-secondary/80 text-secondary-foreground">
-          <Plus className="h-4 w-4 mr-2" />
-          New email
+        <Button 
+          variant="default" 
+          className="w-full justify-start gap-2 mb-2"
+          onClick={onCompose}
+          disabled={!selectedAccount}
+        >
+          <Send className="h-4 w-4" />
+          Compose
+        </Button>
+        <Button 
+          variant="outline" 
+          className="w-full justify-start gap-2 mb-2"
+          onClick={handleSyncNow}
+          disabled={!selectedAccount || isSyncing}
+        >
+          <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+          {isSyncing ? 'Syncing...' : 'Sync Now'}
         </Button>
       </div>
 
-      {/* Navigation */}
-      <ScrollArea className="flex-1 scrollbar-thin">
+      {/* Email Accounts */}
+      <ScrollArea className="flex-1">
         <div className="p-2">
-          {/* Sync Button */}
-          {selectedAccount && (
-            <div className="mb-4 px-1">
-              <Button
-                onClick={handleSyncNow}
-                disabled={isSyncing}
-                variant="outline"
-                className="w-full justify-start"
-                size="sm"
-              >
-                <RefreshCcw className={cn("h-4 w-4 mr-2", isSyncing && "animate-spin")} />
-                {isSyncing ? "Syncing..." : "Sync Now"}
-              </Button>
+          <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1">
+            Inboxes
+          </div>
+          
+          {/* Ultimate Inbox - All Accounts */}
+          <button
+            onClick={() => onSelectAccount(null)}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1",
+              !selectedAccount
+                ? "bg-accent text-accent-foreground"
+                : "hover:bg-accent/50"
+            )}
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+              <Inbox className="h-4 w-4 text-primary-foreground" />
             </div>
-          )}
+            <div className="flex-1 text-left min-w-0">
+              <div className="font-medium text-sm">Ultimate Inbox</div>
+              <div className="text-xs text-muted-foreground">All accounts</div>
+            </div>
+          </button>
 
-          {/* Accounts Section */}
-          <div>
-            <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
-              Client Accounts ({accounts.length})
-            </div>
+          <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1 mt-3">
+            Email Accounts
+          </div>
             <div className="space-y-0.5">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-9 bg-muted/20 animate-pulse rounded-md mx-1" />
+                  <div key={i} className="h-12 bg-muted/20 animate-pulse rounded-md mx-1" />
                 ))
               ) : (
-                accounts.slice(0, 10).map((account) => (
+                accounts.map((account) => (
                   <button
                     key={account.id}
                     onClick={() => onSelectAccount(account)}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
                       selectedAccount?.id === account.id
-                        ? "bg-selected-bg text-foreground"
-                        : "text-muted-foreground hover:bg-hover-bg hover:text-foreground"
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-accent/50"
                     )}
                   >
-                    <span className="truncate">{account.name}</span>
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                        {getInitials(account.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="font-medium text-sm truncate">{account.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{account.email}</div>
+                    </div>
                     {account.unreadCount > 0 && (
-                      <Badge variant="secondary" className="ml-2 bg-unread-indicator text-primary-foreground h-5 px-1.5 text-xs">
+                      <Badge variant="secondary" className="ml-2 bg-primary text-primary-foreground h-5 px-1.5 text-xs">
                         {account.unreadCount}
                       </Badge>
                     )}
@@ -173,7 +200,6 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
                 ))
               )}
             </div>
-          </div>
         </div>
       </ScrollArea>
     </aside>

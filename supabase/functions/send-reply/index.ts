@@ -64,7 +64,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { accountId, messageId, replyText, forwardTo, action } = await req.json();
+    const { accountId, messageId, replyText, forwardTo, action, composeData, markAsRead, messageIds } = await req.json();
 
     if (!accountId) {
       throw new Error("Missing accountId");
@@ -107,6 +107,76 @@ serve(async (req) => {
           expires_at: new Date(Date.now() + newTokens.expires_in * 1000).toISOString(),
         })
         .eq("account_id", accountId);
+    }
+
+    // Handle mark as read action (bulk or single)
+    if (markAsRead || action === 'markAsRead') {
+      const idsToMark = messageIds || [messageId];
+      for (const msgId of idsToMark) {
+        await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/modify`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              removeLabelIds: ['UNREAD'],
+            }),
+          }
+        );
+        
+        // Update local cache
+        await supabase
+          .from('cached_messages')
+          .update({ is_read: true })
+          .eq('message_id', msgId)
+          .eq('account_id', accountId);
+      }
+      
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Handle compose new email
+    if (composeData) {
+      const { to, subject, body } = composeData;
+      const emailContent = [
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        'Content-Type: text/html; charset=utf-8',
+        '',
+        body,
+      ].join('\n');
+
+      const encodedMessage = btoa(emailContent)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      const sendResponse = await fetch(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ raw: encodedMessage }),
+        }
+      );
+
+      if (!sendResponse.ok) {
+        throw new Error('Failed to send email');
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Handle different actions
