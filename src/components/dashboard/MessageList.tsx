@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +67,7 @@ const MessageList = ({
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const [advancedFilters, setAdvancedFilters] = useState<SearchFilters>({});
   const MESSAGES_PER_PAGE = 50;
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
   
   const syncStatuses = useSyncStatus(selectedAccount ? [selectedAccount.id] : undefined);
   const syncStatus = selectedAccount ? syncStatuses.get(selectedAccount.id) : undefined;
@@ -233,15 +234,26 @@ const MessageList = ({
     }
   };
 
-  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const target = event.currentTarget;
-    const scrollPercentage = (target.scrollTop + target.clientHeight) / target.scrollHeight;
+  const handleScroll = () => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+    
+    const scrollPercentage = (viewport.scrollTop + viewport.clientHeight) / viewport.scrollHeight;
     
     // Load more when scrolled to 80% of the content
     if (scrollPercentage > 0.8 && hasMore && !isLoadingMore && !isLoading) {
       loadMoreMessages();
     }
   };
+
+  // Attach scroll handler to viewport
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+
+    viewport.addEventListener('scroll', handleScroll);
+    return () => viewport.removeEventListener('scroll', handleScroll);
+  }, [hasMore, isLoadingMore, isLoading, offset]);
 
   const filteredMessages = messages.filter((msg) => {
     const query = (searchQuery || localSearch).toLowerCase();
@@ -493,7 +505,11 @@ const MessageList = ({
       </div>
 
       {/* Messages List */}
-      <ScrollArea className="flex-1 scrollbar-thin" onScroll={handleScroll}>
+      <div className="flex-1 relative overflow-hidden">
+        <div 
+          ref={scrollViewportRef} 
+          className="absolute inset-0 overflow-auto scrollbar-thin"
+        >
         {isLoading && messages.length === 0 ? (
           <div className="p-2 space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -581,7 +597,8 @@ const MessageList = ({
             )}
           </div>
         )}
-      </ScrollArea>
+        </div>
+      </div>
     </div>
   );
 };
