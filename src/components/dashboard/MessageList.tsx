@@ -249,7 +249,7 @@ const MessageList = ({
   }
 
   return (
-    <div className="w-[420px] border-r border-border bg-card flex flex-col">
+    <div className="w-full lg:w-[420px] border-r border-border bg-card flex flex-col">
       {/* Sync Status Header */}
       {syncStatus?.status === "running" && (
         <div className="px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 flex items-center gap-2">
@@ -364,9 +364,9 @@ const MessageItem = ({ message, isSelected, onSelect, isCheckboxSelected, onTogg
   return (
     <div
       className={cn(
-        "px-4 py-3 border-b border-border cursor-pointer transition-colors hover:bg-accent/50",
-        isSelected && "bg-accent",
-        message.isUnread && "bg-accent/20"
+        "px-4 py-3 border-b border-border cursor-pointer transition-colors hover:bg-muted/30",
+        isSelected && "bg-muted/50",
+        message.isUnread && "bg-muted/20"
       )}
     >
       <div className="flex items-start gap-3">
