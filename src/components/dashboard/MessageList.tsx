@@ -18,12 +18,16 @@ import {
   Inbox,
   RefreshCcw,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  MessageSquare,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Account, Message } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
+import AdvancedSearchDialog, { SearchFilters } from "./AdvancedSearchDialog";
 
 
 
@@ -58,6 +62,9 @@ const MessageList = ({
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [threadingEnabled, setThreadingEnabled] = useState(true);
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const [advancedFilters, setAdvancedFilters] = useState<SearchFilters>({});
   const MESSAGES_PER_PAGE = 50;
   
   const syncStatuses = useSyncStatus(selectedAccount ? [selectedAccount.id] : undefined);
@@ -238,13 +245,85 @@ const MessageList = ({
   const filteredMessages = messages.filter((msg) => {
     const query = (searchQuery || localSearch).toLowerCase();
     if (query && !msg.subject.toLowerCase().includes(query) &&
-        !msg.from.name.toLowerCase().includes(query)) {
+        !msg.from.name.toLowerCase().includes(query) &&
+        !msg.from.email.toLowerCase().includes(query)) {
       return false;
     }
     if (filterUnread && !msg.isUnread) return false;
     if (filterFlagged && !msg.isFlagged) return false;
+    
+    // Advanced filters
+    if (advancedFilters.sender && !msg.from.email.toLowerCase().includes(advancedFilters.sender.toLowerCase())) {
+      return false;
+    }
+    if (advancedFilters.subject && !msg.subject.toLowerCase().includes(advancedFilters.subject.toLowerCase())) {
+      return false;
+    }
+    if (advancedFilters.dateFrom) {
+      const msgDate = new Date(msg.date);
+      if (msgDate < advancedFilters.dateFrom) return false;
+    }
+    if (advancedFilters.dateTo) {
+      const msgDate = new Date(msg.date);
+      const toDate = new Date(advancedFilters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      if (msgDate > toDate) return false;
+    }
+    if (advancedFilters.labels && advancedFilters.labels.length > 0) {
+      const hasAllLabels = advancedFilters.labels.every(label => 
+        msg.labels.includes(label)
+      );
+      if (!hasAllLabels) return false;
+    }
+    if (advancedFilters.hasAttachments && !msg.hasAttachments) {
+      return false;
+    }
+    
     return true;
   });
+
+  // Group messages by thread
+  const groupedMessages = threadingEnabled ? (() => {
+    const threads = new Map<string, Message[]>();
+    filteredMessages.forEach(msg => {
+      const threadId = msg.threadId || msg.id;
+      if (!threads.has(threadId)) {
+        threads.set(threadId, []);
+      }
+      threads.get(threadId)!.push(msg);
+    });
+    
+    // Sort messages within each thread by date
+    threads.forEach(thread => {
+      thread.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
+    
+    return Array.from(threads.entries()).map(([threadId, messages]) => ({
+      threadId,
+      messages,
+      latestMessage: messages[0],
+      count: messages.length
+    })).sort((a, b) => 
+      new Date(b.latestMessage.date).getTime() - new Date(a.latestMessage.date).getTime()
+    );
+  })() : filteredMessages.map(msg => ({
+    threadId: msg.id,
+    messages: [msg],
+    latestMessage: msg,
+    count: 1
+  }));
+
+  const toggleThread = (threadId: string) => {
+    setExpandedThreads(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(threadId)) {
+        newSet.delete(threadId);
+      } else {
+        newSet.add(threadId);
+      }
+      return newSet;
+    });
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -413,15 +492,30 @@ const MessageList = ({
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search messages..."
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            className="pl-9 bg-input border-border"
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search messages..."
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              className="pl-9 bg-input border-border"
+            />
+          </div>
+          <AdvancedSearchDialog 
+            onApplyFilters={setAdvancedFilters}
+            currentFilters={advancedFilters}
           />
+          <Button
+            variant={threadingEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => setThreadingEnabled(!threadingEnabled)}
+            title="Toggle conversation view"
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Threads
+          </Button>
         </div>
       </div>
 
@@ -485,9 +579,21 @@ interface MessageItemProps {
   onSelect: (message: Message) => void;
   isCheckboxSelected: boolean;
   onToggleCheckbox: (id: string) => void;
+  threadCount?: number;
+  hasThreadExpander?: boolean;
+  isThreadedMessage?: boolean;
 }
 
-const MessageItem = ({ message, isSelected, onSelect, isCheckboxSelected, onToggleCheckbox }: MessageItemProps) => {
+const MessageItem = ({ 
+  message, 
+  isSelected, 
+  onSelect, 
+  isCheckboxSelected, 
+  onToggleCheckbox, 
+  threadCount,
+  hasThreadExpander,
+  isThreadedMessage 
+}: MessageItemProps) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -550,7 +656,9 @@ const MessageItem = ({ message, isSelected, onSelect, isCheckboxSelected, onTogg
       className={cn(
         "px-4 py-3 border-b border-border cursor-pointer transition-colors hover:bg-muted/30",
         isSelected && "bg-muted/50",
-        message.isUnread && "bg-muted/20"
+        message.isUnread && "bg-muted/20",
+        isThreadedMessage && "bg-muted/10",
+        hasThreadExpander && "pl-10"
       )}
     >
       <div className="flex items-start gap-3">
@@ -575,12 +683,19 @@ const MessageItem = ({ message, isSelected, onSelect, isCheckboxSelected, onTogg
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
-              <span className={cn(
-                "text-sm truncate",
-                message.isUnread && "font-semibold"
-              )}>
-                {message.from.name}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "text-sm truncate",
+                  message.isUnread && "font-semibold"
+                )}>
+                  {message.from.name}
+                </span>
+                {threadCount && threadCount > 1 && (
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {threadCount}
+                  </Badge>
+                )}
+              </div>
               <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
                 {formatDate(message.date)}
               </span>
