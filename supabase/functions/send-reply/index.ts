@@ -179,39 +179,85 @@ serve(async (req) => {
       );
     }
 
-    // Handle different actions
+    // Handle delete action (bulk or single)
     if (action === "delete") {
-      // Delete (trash) the message in Gmail
-      if (!messageId) throw new Error("Missing messageId");
-
-      const { data: msg } = await supabase
-        .from("cached_messages")
-        .select("message_id")
-        .eq("id", messageId)
-        .single();
-
-      if (!msg) throw new Error("Message not found");
-
-      const trashResponse = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.message_id}/trash`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-
-      if (!trashResponse.ok) {
-        throw new Error("Failed to delete message");
+      const idsToDelete = messageIds || [messageId];
+      
+      if (idsToDelete.length === 0) {
+        throw new Error("No message IDs provided");
       }
 
-      // Mark as deleted in our DB
-      await supabase
+      console.log(`Deleting ${idsToDelete.length} messages for account ${accountId}`);
+      
+      // Get all messages to delete
+      const { data: msgs, error: fetchError } = await supabase
         .from("cached_messages")
-        .delete()
-        .eq("id", messageId);
+        .select("id, message_id")
+        .in("id", idsToDelete)
+        .eq("account_id", accountId);
+
+      if (fetchError) {
+        console.error("Error fetching messages:", fetchError);
+        throw new Error("Failed to fetch messages");
+      }
+
+      if (!msgs || msgs.length === 0) {
+        console.error("No messages found for deletion");
+        throw new Error("Messages not found");
+      }
+
+      console.log(`Found ${msgs.length} messages to delete`);
+
+      // Delete each message from Gmail
+      const deletePromises = msgs.map(async (msg) => {
+        try {
+          const trashResponse = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.message_id}/trash`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${accessToken}` },
+            }
+          );
+
+          if (!trashResponse.ok) {
+            const errorText = await trashResponse.text();
+            console.error(`Failed to trash message ${msg.message_id}:`, errorText);
+            // Don't throw - continue with other deletes
+            return { id: msg.id, success: false, error: errorText };
+          }
+
+          console.log(`Successfully trashed message ${msg.message_id}`);
+          return { id: msg.id, success: true };
+        } catch (err) {
+          console.error(`Error trashing message ${msg.message_id}:`, err);
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          return { id: msg.id, success: false, error: errorMsg };
+        }
+      });
+
+      const results = await Promise.all(deletePromises);
+      const successIds = results.filter(r => r.success).map(r => r.id);
+
+      // Delete successfully trashed messages from our DB
+      if (successIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("cached_messages")
+          .delete()
+          .in("id", successIds);
+
+        if (deleteError) {
+          console.error("Error deleting from cache:", deleteError);
+        } else {
+          console.log(`Deleted ${successIds.length} messages from cache`);
+        }
+      }
 
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({ 
+          success: true, 
+          deleted: successIds.length,
+          failed: results.length - successIds.length 
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

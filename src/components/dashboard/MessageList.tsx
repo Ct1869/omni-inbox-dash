@@ -282,6 +282,44 @@ const MessageList = ({
     }
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setIsDeleting(true);
+    
+    try {
+      // Group messages by account
+      const messagesByAccount = new Map<string, string[]>();
+      messages.forEach(msg => {
+        if (selectedIds.has(msg.id)) {
+          const accountMsgs = messagesByAccount.get(msg.accountId) || [];
+          accountMsgs.push(msg.id);
+          messagesByAccount.set(msg.accountId, accountMsgs);
+        }
+      });
+
+      // Delete for each account
+      for (const [accountId, messageIds] of messagesByAccount.entries()) {
+        await supabase.functions.invoke('send-reply', {
+          body: {
+            accountId,
+            messageIds,
+            action: 'delete',
+          },
+        });
+      }
+      
+      // Remove deleted messages from local state
+      setMessages(prev => prev.filter(msg => !selectedIds.has(msg.id)));
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error('Delete error:', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (!selectedAccount && !isUltimateInbox) {
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
@@ -326,14 +364,24 @@ const MessageList = ({
             {isUltimateInbox ? 'Ultimate Inbox' : selectedAccount?.name}
           </h2>
           {selectedIds.size > 0 && (
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleMarkSelectedAsRead}
-              disabled={isMarkingRead}
-            >
-              Mark {selectedIds.size} as read
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleMarkSelectedAsRead}
+                disabled={isMarkingRead || isDeleting}
+              >
+                Mark {selectedIds.size} as read
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={isDeleting || isMarkingRead}
+              >
+                Delete {selectedIds.size}
+              </Button>
+            </div>
           )}
         </div>
 
