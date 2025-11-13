@@ -6,6 +6,50 @@
 All colors MUST be HSL.
 */
 
+/* Email body styling for complex HTML emails */
+.email-body {
+  /* Reset email client styles */
+  font-family: inherit !important;
+  line-height: 1.6;
+}
+
+.email-body * {
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.email-body img {
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.email-body table {
+  border-collapse: collapse;
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.email-body td,
+.email-body th {
+  padding: 8px;
+  word-break: break-word;
+}
+
+.email-body a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.email-body blockquote {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 1rem;
+  margin-left: 0;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
+
 @layer base {
   :root {
     /* Dark theme as default */
