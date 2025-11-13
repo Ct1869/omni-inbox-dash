@@ -210,18 +210,18 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
           <button
             onClick={() => onSelectAccount(null)}
             className={cn(
-              "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1",
+              "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1 overflow-hidden",
               !selectedAccount
-                ? "bg-accent text-accent-foreground"
-                : "hover:bg-accent/50"
+                ? "bg-muted/50 text-foreground"
+                : "hover:bg-muted/30"
             )}
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
               <Inbox className="h-4 w-4 text-primary-foreground" />
             </div>
-            <div className="flex-1 text-left min-w-0">
-              <div className="font-medium text-sm">Ultimate Inbox</div>
-              <div className="text-xs text-muted-foreground">All accounts</div>
+            <div className="flex-1 text-left min-w-0 overflow-hidden">
+              <div className="font-medium text-sm truncate">Ultimate Inbox</div>
+              <div className="text-xs text-muted-foreground truncate">All accounts</div>
             </div>
           </button>
 
@@ -245,23 +245,23 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
                       key={account.id}
                       onClick={() => onSelectAccount(account)}
                       className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors overflow-hidden",
                         selectedAccount?.id === account.id
-                          ? "bg-accent text-accent-foreground"
-                          : "hover:bg-accent/50"
+                          ? "bg-muted/50 text-foreground"
+                          : "hover:bg-muted/30"
                       )}
                     >
-                      <Avatar className="h-8 w-8">
+                      <Avatar className="h-8 w-8 flex-shrink-0">
                         <AvatarFallback className="bg-primary/10 text-primary text-xs">
                           {getInitials(account.name)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 text-left min-w-0">
+                      <div className="flex-1 text-left min-w-0 overflow-hidden">
                         <div className="font-medium text-sm truncate">{account.name}</div>
                         <div className="text-xs text-muted-foreground truncate">{account.email}</div>
                       </div>
                       
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {/* Sync status indicator */}
                         {isAccountSyncing && (
                           <TooltipProvider>
@@ -294,7 +294,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
                         )}
 
                         {account.unreadCount > 0 && (
-                          <Badge variant="secondary" className="bg-primary text-primary-foreground h-5 px-1.5 text-xs">
+                          <Badge variant="secondary" className="bg-primary text-primary-foreground h-5 px-1.5 text-xs min-w-[20px] justify-center">
                             {account.unreadCount}
                           </Badge>
                         )}

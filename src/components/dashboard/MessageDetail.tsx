@@ -215,13 +215,17 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
 
       {/* Message Body */}
       <ScrollArea className="flex-1 overflow-auto">
-        <div className="p-6 max-w-3xl">
+        <div className="p-6 w-full">
           {loading ? (
             <div className="text-sm text-muted-foreground">Loading message…</div>
           ) : bodyHtml ? (
-            <article className="prose prose-sm prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+            <article 
+              className="prose prose-sm max-w-none dark:prose-invert" 
+              style={{ color: 'inherit' }}
+              dangerouslySetInnerHTML={{ __html: bodyHtml }} 
+            />
           ) : bodyText ? (
-            <pre className="whitespace-pre-wrap text-sm text-foreground">{bodyText}</pre>
+            <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">{bodyText}</pre>
           ) : (
             <div className="text-sm text-muted-foreground">No content available.</div>
           )}
