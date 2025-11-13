@@ -57,6 +57,7 @@ const MessageList = ({
   const [isMarkingRead, setIsMarkingRead] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const MESSAGES_PER_PAGE = 50;
   
   const syncStatuses = useSyncStatus(selectedAccount ? [selectedAccount.id] : undefined);
@@ -174,9 +175,9 @@ const MessageList = ({
   }, [selectedAccount, refreshTrigger, isUltimateInbox, mailboxView]);
 
   const loadMoreMessages = async () => {
-    if (!hasMore || isLoading) return;
+    if (!hasMore || isLoading || isLoadingMore) return;
     
-    setIsLoading(true);
+    setIsLoadingMore(true);
     try {
       let query = supabase
         .from('cached_messages')
@@ -184,6 +185,13 @@ const MessageList = ({
       
       if (!isUltimateInbox && selectedAccount) {
         query = query.eq('account_id', selectedAccount.id);
+      }
+
+      // Filter by mailbox view
+      if (mailboxView === "sent") {
+        query = query.contains("labels", ["SENT"]);
+      } else {
+        query = query.contains("labels", ["INBOX"]);
       }
       
       const { data, error } = await query
@@ -213,7 +221,17 @@ const MessageList = ({
     } catch (err) {
       console.error('Load more messages error:', err);
     } finally {
-      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    const scrollPercentage = (target.scrollTop + target.clientHeight) / target.scrollHeight;
+    
+    // Load more when scrolled to 80% of the content
+    if (scrollPercentage > 0.8 && hasMore && !isLoadingMore && !isLoading) {
+      loadMoreMessages();
     }
   };
 
@@ -436,23 +454,22 @@ const MessageList = ({
                 onToggleCheckbox={handleToggleSelect}
               />
             ))}
-            {hasMore && (
+            {hasMore && !isLoadingMore && (
               <div className="p-4 bg-background">
                 <Button 
                   variant="outline" 
                   onClick={loadMoreMessages}
-                  disabled={isLoading}
+                  disabled={isLoadingMore}
                   className="w-full bg-background hover:bg-muted border-border"
                 >
-                  {isLoading ? (
-                    <>
-                      <RefreshCcw className="animate-spin h-4 w-4 mr-2" />
-                      Loading...
-                    </>
-                  ) : (
-                    'Load More'
-                  )}
+                  Load More
                 </Button>
+              </div>
+            )}
+            {isLoadingMore && (
+              <div className="p-4 flex justify-center bg-background">
+                <RefreshCcw className="animate-spin h-4 w-4 mr-2" />
+                <span className="text-muted-foreground text-sm">Loading more messages...</span>
               </div>
             )}
           </div>

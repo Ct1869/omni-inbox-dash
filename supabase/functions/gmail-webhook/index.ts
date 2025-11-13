@@ -81,6 +81,32 @@ serve(async (req) => {
 
     console.log(`Found account ${account.id} for ${emailAddress}`);
 
+    // Insert webhook into queue for processing
+    const { error: queueError } = await supabase
+      .from('webhook_queue')
+      .insert({
+        email_address: emailAddress,
+        history_id: historyId,
+        account_id: account.id,
+        status: 'pending',
+      });
+
+    if (queueError) {
+      console.error('Error inserting webhook into queue:', queueError);
+      throw queueError;
+    }
+
+    console.log(`Webhook queued for processing: ${emailAddress}`);
+
+    // Return 200 immediately - processing will happen asynchronously
+    return new Response(
+      JSON.stringify({ success: true, message: 'Webhook queued for processing' }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
+    // The rest of the code below will not execute but is kept for reference
+    // The webhook-processor function will handle the actual processing
+
     // Get watch info and OAuth tokens
     const { data: watch } = await supabase
       .from("gmail_watches")
