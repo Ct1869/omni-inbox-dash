@@ -6,6 +6,33 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Retry function with exponential backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  operation = 'operation'
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`${operation}: Attempt ${attempt}/${maxRetries}`);
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`${operation}: Attempt ${attempt} failed:`, lastError.message);
+      
+      if (attempt < maxRetries) {
+        const delayMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+        console.log(`${operation}: Waiting ${delayMs}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  
+  throw new Error(`${operation} failed after ${maxRetries} attempts: ${lastError!.message}`);
+}
+
 async function refreshAccessToken(refreshToken: string) {
   const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
   const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
@@ -96,6 +123,16 @@ serve(async (req) => {
   }
 
   try {
+    // Set timeout for this function (5 minutes)
+    const timeoutMs = 5 * 60 * 1000;
+    const startTime = Date.now();
+    
+    const checkTimeout = () => {
+      if (Date.now() - startTime > timeoutMs) {
+        throw new Error('Sync operation timeout: exceeded 5 minutes');
+      }
+    };
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -103,13 +140,14 @@ serve(async (req) => {
 
     const { accountId, pageToken = null, maxMessages = 1000 } = await req.json();
 
-    // Create sync job
+    // Create sync job with timeout
     const { data: syncJob } = await supabase
       .from("sync_jobs")
       .insert({
         account_id: accountId,
         status: "processing",
         started_at: new Date().toISOString(),
+        timeout_at: new Date(Date.now() + timeoutMs).toISOString(),
       })
       .select()
       .single();
@@ -164,6 +202,8 @@ serve(async (req) => {
     console.log(`Starting sync for account ${accountId}, max messages: ${maxMessages}`);
     
     while (totalFetched < maxMessages) {
+      checkTimeout(); // Check if we've exceeded timeout
+      
       const pageSize = Math.min(500, maxMessages - totalFetched);
       let url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}`;
       
@@ -171,13 +211,29 @@ serve(async (req) => {
         url += `&pageToken=${nextPageToken}`;
       }
 
-      const gmailResponse = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
+      const gmailResponse = await retryWithBackoff(
+        async () => {
+          const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
 
-      if (!gmailResponse.ok) {
-        throw new Error("Failed to fetch messages from Gmail");
-      }
+          if (response.status === 429) {
+            const retryAfter = response.headers.get('Retry-After');
+            const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : 2000;
+            console.log(`Rate limited. Waiting ${waitMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+            throw new Error('Rate limited, retrying...');
+          }
+
+          if (!response.ok) {
+            throw new Error("Failed to fetch messages from Gmail");
+          }
+
+          return response;
+        },
+        3,
+        'Fetch messages from Gmail'
+      );
 
       const data = await gmailResponse.json();
       
