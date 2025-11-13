@@ -143,7 +143,7 @@ const Dashboard = () => {
       
       {/* Message List - shown when account selected on mobile, always on desktop */}
       <div className={cn(
-        "flex-1 flex flex-col overflow-hidden",
+        "flex-1 flex flex-col overflow-hidden min-h-0",
         selectedMessage && "hidden lg:flex",
         !selectedAccount && "hidden lg:flex"
       )}>
