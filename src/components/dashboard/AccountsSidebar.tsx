@@ -38,6 +38,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSettingUpWatches, setIsSettingUpWatches] = useState(false);
   const userEmail = localStorage.getItem("userEmail") || "user@email.com";
   const userName = userEmail.split("@")[0];
   
@@ -59,6 +60,42 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
       toast.error(err.message || "Failed to sync messages", { id: "sync" });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleSetupWatches = async () => {
+    setIsSettingUpWatches(true);
+    toast.loading("Setting up push notifications...", { id: "setup-watches" });
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("setup-gmail-watches");
+      
+      if (error) throw error;
+      
+      // Show summary
+      const results = data.results || [];
+      const successful = results.filter((r: any) => r.success).length;
+      const failed = results.filter((r: any) => !r.success).length;
+      
+      if (failed === 0) {
+        toast.success(`Push notifications enabled for ${successful} account(s)`, { id: "setup-watches" });
+      } else {
+        toast.warning(`Enabled for ${successful} account(s), ${failed} failed`, { id: "setup-watches" });
+      }
+      
+      // Show detailed results
+      results.forEach((result: any) => {
+        if (!result.success) {
+          toast.error(`${result.email}: ${result.message}`);
+        }
+      });
+      
+      onRefresh();
+    } catch (err: any) {
+      console.error("Setup watches error:", err);
+      toast.error(err.message || "Failed to setup push notifications", { id: "setup-watches" });
+    } finally {
+      setIsSettingUpWatches(false);
     }
   };
 
@@ -130,15 +167,36 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
           <Send className="h-4 w-4" />
           Compose
         </Button>
-        <Button 
-          variant="outline" 
-          className="w-full justify-start gap-2 mb-2"
-          onClick={handleSyncNow}
-          disabled={!selectedAccount || isSyncing}
-        >
-          <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
-          {isSyncing ? 'Syncing...' : 'Sync Now'}
-        </Button>
+        <div className="flex gap-2 mb-2">
+          <Button 
+            variant="outline" 
+            className="flex-1 justify-start gap-2"
+            onClick={handleSyncNow}
+            disabled={!selectedAccount || isSyncing}
+          >
+            <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            {isSyncing ? 'Syncing...' : 'Sync Now'}
+          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleSetupWatches}
+                  disabled={isSettingUpWatches || accounts.length === 0}
+                  className="shrink-0"
+                >
+                  <RefreshCcw className={cn("h-4 w-4", isSettingUpWatches && "animate-spin")} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Setup Push Notifications</p>
+                <p className="text-xs text-muted-foreground">Enable auto-sync for all accounts</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
       {/* Email Accounts */}
