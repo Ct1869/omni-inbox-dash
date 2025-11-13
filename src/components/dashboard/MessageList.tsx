@@ -103,6 +103,59 @@ const MessageList = ({
 
     fetchMessages();
     setSelectedIds(new Set());
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel('cached-messages-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cached_messages',
+          filter: selectedAccount ? `account_id=eq.${selectedAccount.id}` : undefined,
+        },
+        (payload) => {
+          console.log('Real-time message update:', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            const m = payload.new as any;
+            const newMessage: Message = {
+              id: m.id,
+              accountId: m.account_id,
+              threadId: m.thread_id || '',
+              from: { name: m.sender_name || m.sender_email, email: m.sender_email },
+              subject: m.subject || '(no subject)',
+              preview: m.snippet || '',
+              date: m.received_at,
+              isUnread: !m.is_read,
+              isFlagged: m.is_starred,
+              hasAttachments: m.has_attachments,
+              labels: m.labels || [],
+              messageId: m.message_id,
+            };
+            setMessages(prev => [newMessage, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            const m = payload.new as any;
+            setMessages(prev => prev.map(msg => 
+              msg.id === m.id
+                ? {
+                    ...msg,
+                    isUnread: !m.is_read,
+                    isFlagged: m.is_starred,
+                  }
+                : msg
+            ));
+          } else if (payload.eventType === 'DELETE') {
+            setMessages(prev => prev.filter(msg => msg.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedAccount, refreshTrigger, isUltimateInbox]);
 
   const filteredMessages = messages.filter((msg) => {
