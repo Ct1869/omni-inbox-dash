@@ -53,6 +53,9 @@ const MessageList = ({
   const [localSearch, setLocalSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isMarkingRead, setIsMarkingRead] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const MESSAGES_PER_PAGE = 50;
   
   const syncStatuses = useSyncStatus(selectedAccount ? [selectedAccount.id] : undefined);
   const syncStatus = selectedAccount ? syncStatuses.get(selectedAccount.id) : undefined;
@@ -60,6 +63,7 @@ const MessageList = ({
   useEffect(() => {
     const fetchMessages = async () => {
       setIsLoading(true);
+      setOffset(0);
       try {
         let query = supabase
           .from('cached_messages')
@@ -76,7 +80,7 @@ const MessageList = ({
         
         const { data, error } = await query
           .order('received_at', { ascending: false })
-          .limit(200);
+          .range(0, MESSAGES_PER_PAGE - 1);
         
         if (error) throw error;
         const mapped: Message[] = (data || []).map((m: any) => ({
@@ -94,6 +98,8 @@ const MessageList = ({
           messageId: m.message_id,
         }));
         setMessages(mapped);
+        setHasMore(data?.length === MESSAGES_PER_PAGE);
+        setOffset(MESSAGES_PER_PAGE);
       } catch (err) {
         console.error('Load messages error:', err);
       } finally {
@@ -157,6 +163,50 @@ const MessageList = ({
       supabase.removeChannel(channel);
     };
   }, [selectedAccount, refreshTrigger, isUltimateInbox]);
+
+  const loadMoreMessages = async () => {
+    if (!hasMore || isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      let query = supabase
+        .from('cached_messages')
+        .select('id, account_id, thread_id, sender_name, sender_email, subject, snippet, received_at, is_read, is_starred, has_attachments, labels, message_id');
+      
+      if (!isUltimateInbox && selectedAccount) {
+        query = query.eq('account_id', selectedAccount.id);
+      }
+      
+      const { data, error } = await query
+        .order('received_at', { ascending: false })
+        .range(offset, offset + MESSAGES_PER_PAGE - 1);
+      
+      if (error) throw error;
+      
+      const mapped: Message[] = (data || []).map((m: any) => ({
+        id: m.id,
+        accountId: m.account_id,
+        threadId: m.thread_id || '',
+        from: { name: m.sender_name || m.sender_email, email: m.sender_email },
+        subject: m.subject || '(no subject)',
+        preview: m.snippet || '',
+        date: m.received_at,
+        isUnread: !m.is_read,
+        isFlagged: m.is_starred,
+        hasAttachments: m.has_attachments,
+        labels: m.labels || [],
+        messageId: m.message_id,
+      }));
+      
+      setMessages(prev => [...prev, ...mapped]);
+      setHasMore(data?.length === MESSAGES_PER_PAGE);
+      setOffset(prev => prev + MESSAGES_PER_PAGE);
+    } catch (err) {
+      console.error('Load more messages error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredMessages = messages.filter((msg) => {
     const query = (searchQuery || localSearch).toLowerCase();
@@ -302,7 +352,7 @@ const MessageList = ({
 
       {/* Messages List */}
       <ScrollArea className="flex-1 scrollbar-thin">
-        {isLoading ? (
+        {isLoading && messages.length === 0 ? (
           <div className="p-2 space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="h-20 bg-muted/20 animate-pulse rounded-md" />
@@ -329,6 +379,25 @@ const MessageList = ({
                 onToggleCheckbox={handleToggleSelect}
               />
             ))}
+            {hasMore && (
+              <div className="p-4 text-center">
+                <Button 
+                  variant="ghost" 
+                  onClick={loadMoreMessages}
+                  disabled={isLoading}
+                  className="w-full"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCcw className="animate-spin h-4 w-4 mr-2" />
+                      Loading...
+                    </>
+                  ) : (
+                    'Load More'
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>
@@ -361,6 +430,47 @@ const MessageItem = ({ message, isSelected, onSelect, isCheckboxSelected, onTogg
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
+  const getBrandInfo = (email: string, name: string) => {
+    const domain = email.toLowerCase().split('@')[1] || '';
+    const nameLower = name.toLowerCase();
+    
+    // Brand detection
+    const brands: Record<string, { color: string; initial: string }> = {
+      'stripe.com': { color: 'bg-[#635BFF] text-white', initial: 'S' },
+      'netflix.com': { color: 'bg-[#E50914] text-white', initial: 'N' },
+      'linkedin.com': { color: 'bg-[#0A66C2] text-white', initial: 'in' },
+      'asana.com': { color: 'bg-[#F06A6A] text-white', initial: 'A' },
+      'figma.com': { color: 'bg-[#F24E1E] text-white', initial: 'F' },
+      'docusign.com': { color: 'bg-[#FFCD00] text-black', initial: 'D' },
+      'github.com': { color: 'bg-[#181717] text-white', initial: 'G' },
+      'google.com': { color: 'bg-[#4285F4] text-white', initial: 'G' },
+      'apple.com': { color: 'bg-black text-white', initial: 'A' },
+      'microsoft.com': { color: 'bg-[#00A4EF] text-white', initial: 'M' },
+      'slack.com': { color: 'bg-[#4A154B] text-white', initial: 'S' },
+      'dropbox.com': { color: 'bg-[#0061FF] text-white', initial: 'D' },
+      'zoom.us': { color: 'bg-[#2D8CFF] text-white', initial: 'Z' },
+      'salesforce.com': { color: 'bg-[#00A1E0] text-white', initial: 'S' },
+      'notion.so': { color: 'bg-black text-white', initial: 'N' },
+      'trello.com': { color: 'bg-[#0079BF] text-white', initial: 'T' },
+      'shopify.com': { color: 'bg-[#7AB55C] text-white', initial: 'S' },
+    };
+    
+    // Check domain
+    if (brands[domain]) {
+      return brands[domain];
+    }
+    
+    // Check name for brand keywords
+    for (const [key, value] of Object.entries(brands)) {
+      const brandName = key.split('.')[0];
+      if (nameLower.includes(brandName)) {
+        return value;
+      }
+    }
+    
+    return null;
+  };
+
   return (
     <div
       className={cn(
@@ -381,8 +491,11 @@ const MessageItem = ({ message, isSelected, onSelect, isCheckboxSelected, onTogg
         />
         <div onClick={() => onSelect(message)} className="flex items-start gap-3 flex-1">
           <Avatar className="h-10 w-10 flex-shrink-0">
-            <AvatarFallback className="bg-primary/10 text-primary text-sm">
-              {getInitials(message.from.name)}
+            <AvatarFallback className={cn(
+              "text-sm font-semibold",
+              getBrandInfo(message.from.email, message.from.name)?.color || "bg-primary/10 text-primary"
+            )}>
+              {getBrandInfo(message.from.email, message.from.name)?.initial || getInitials(message.from.name)}
             </AvatarFallback>
           </Avatar>
           
