@@ -153,11 +153,15 @@ serve(async (req) => {
           await supabase.from("sync_jobs").delete().eq("id", syncJob.id);
         }
         
-        // Create a pending sync job for sync-messages to handle
-        await supabase.from("sync_jobs").insert({
-          account_id: account.id,
-          status: "pending",
-        });
+        // Trigger sync-messages function to do full sync
+        try {
+          await supabase.functions.invoke("sync-messages", {
+            body: { accountId: account.id },
+          });
+          console.log("Triggered full sync for account", account.id);
+        } catch (error) {
+          console.error("Failed to trigger sync:", error);
+        }
         
         return new Response(JSON.stringify({ success: true, triggeredFullSync: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
