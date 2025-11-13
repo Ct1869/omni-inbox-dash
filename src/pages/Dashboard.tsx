@@ -7,6 +7,7 @@ import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import ComposeDialog from "@/components/dashboard/ComposeDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export interface Account {
   id: string;
@@ -118,21 +119,32 @@ const Dashboard = () => {
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
-      <AccountsSidebar
-        selectedAccount={selectedAccount}
-        onSelectAccount={(account) => {
-          setSelectedAccount(account);
-          setSelectedMessage(null);
-        }}
-        onConnectGmail={initiateGmailOAuth}
-        onRefresh={() => setRefreshTrigger(prev => prev + 1)}
-        onCompose={() => {
-          if (selectedAccount) {
-            setIsComposeOpen(true);
-          }
-        }}
-      />
+      {/* Sidebar - hidden on mobile when message selected */}
+      <div className={cn(
+        "flex-shrink-0",
+        selectedMessage && "hidden lg:block"
+      )}>
+        <AccountsSidebar
+          selectedAccount={selectedAccount}
+          onSelectAccount={(account) => {
+            setSelectedAccount(account);
+            setSelectedMessage(null);
+          }}
+          onConnectGmail={initiateGmailOAuth}
+          onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+          onCompose={() => {
+            if (selectedAccount) {
+              setIsComposeOpen(true);
+            }
+          }}
+        />
+      </div>
       
+      {/* Message List - hidden on mobile when message selected */}
+      <div className={cn(
+        "flex-shrink-0",
+        selectedMessage && "hidden lg:block"
+      )}>
         <MessageList
           selectedAccount={selectedAccount}
           selectedMessage={selectedMessage}
@@ -143,15 +155,23 @@ const Dashboard = () => {
           refreshTrigger={refreshTrigger}
           isUltimateInbox={!selectedAccount}
         />
+      </div>
       
-      <MessageDetail
-        message={selectedMessage}
-        accountId={selectedAccount?.id}
-        onMessageDeleted={() => {
-          setRefreshTrigger(prev => prev + 1);
-          setSelectedMessage(null);
-        }}
-      />
+      {/* Message Detail - full width on mobile, normal on desktop */}
+      <div className={cn(
+        "flex-1 min-w-0",
+        !selectedMessage && "hidden lg:block"
+      )}>
+        <MessageDetail
+          message={selectedMessage}
+          accountId={selectedAccount?.id}
+          onMessageDeleted={() => {
+            setRefreshTrigger(prev => prev + 1);
+            setSelectedMessage(null);
+          }}
+        />
+      </div>
+      
       {selectedAccount && (
         <ComposeDialog
           open={isComposeOpen}

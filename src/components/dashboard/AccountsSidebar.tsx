@@ -132,7 +132,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
 
 
   return (
-    <aside className="w-64 bg-background border-r border-border flex flex-col">
+    <aside className="w-full lg:w-64 bg-background border-r border-border flex flex-col">
       {/* User Profile */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
