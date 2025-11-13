@@ -15,11 +15,15 @@ import {
   Users,
   Tag,
   Zap,
-  Inbox
+  Inbox,
+  RefreshCcw,
+  AlertCircle,
+  CheckCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Account, Message } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
+import { useSyncStatus } from "@/hooks/useSyncStatus";
 
 
 
@@ -49,6 +53,9 @@ const MessageList = ({
   const [localSearch, setLocalSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isMarkingRead, setIsMarkingRead] = useState(false);
+  
+  const syncStatuses = useSyncStatus(selectedAccount ? [selectedAccount.id] : undefined);
+  const syncStatus = selectedAccount ? syncStatuses.get(selectedAccount.id) : undefined;
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -190,6 +197,25 @@ const MessageList = ({
 
   return (
     <div className="w-[420px] border-r border-border bg-card flex flex-col">
+      {/* Sync Status Header */}
+      {syncStatus?.status === "running" && (
+        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 flex items-center gap-2">
+          <RefreshCcw className="animate-spin text-blue-600 dark:text-blue-400 h-4 w-4" />
+          <span className="text-sm text-blue-800 dark:text-blue-300">
+            Syncing messages... {syncStatus.messagesSynced} processed
+          </span>
+        </div>
+      )}
+
+      {syncStatus?.status === "failed" && (
+        <div className="px-4 py-2 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800 flex items-center gap-2">
+          <AlertCircle className="text-red-600 dark:text-red-400 h-4 w-4" />
+          <span className="text-sm text-red-800 dark:text-red-300 flex-1 truncate">
+            Sync failed: {syncStatus.errorMessage}
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-4">
