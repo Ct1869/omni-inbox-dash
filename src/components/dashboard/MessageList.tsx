@@ -36,6 +36,7 @@ interface MessageListProps {
   filterFlagged: boolean;
   refreshTrigger: number;
   isUltimateInbox?: boolean;
+  mailboxView: "inbox" | "sent";
 }
 
 const MessageList = ({
@@ -47,6 +48,7 @@ const MessageList = ({
   filterFlagged,
   refreshTrigger,
   isUltimateInbox = false,
+  mailboxView,
 }: MessageListProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -76,6 +78,13 @@ const MessageList = ({
           setMessages([]);
           setIsLoading(false);
           return;
+        }
+
+        // Filter by mailbox view
+        if (mailboxView === "sent") {
+          query = query.contains("labels", ["SENT"]);
+        } else {
+          query = query.contains("labels", ["INBOX"]);
         }
         
         const { data, error } = await query
@@ -162,7 +171,7 @@ const MessageList = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedAccount, refreshTrigger, isUltimateInbox]);
+  }, [selectedAccount, refreshTrigger, isUltimateInbox, mailboxView]);
 
   const loadMoreMessages = async () => {
     if (!hasMore || isLoading) return;

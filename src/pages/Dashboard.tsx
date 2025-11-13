@@ -44,6 +44,7 @@ const Dashboard = () => {
   const [filterFlagged, setFilterFlagged] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [mailboxView, setMailboxView] = useState<"inbox" | "sent">("inbox");
 
   // Check authentication
   useEffect(() => {
@@ -142,10 +143,38 @@ const Dashboard = () => {
       
       {/* Message List - shown when account selected on mobile, always on desktop */}
       <div className={cn(
-        "flex-shrink-0 h-full",
+        "flex-1 flex flex-col overflow-hidden",
         selectedMessage && "hidden lg:flex",
         !selectedAccount && "hidden lg:flex"
       )}>
+        {/* Mailbox Tabs */}
+        <div className="border-b border-border bg-background px-4 py-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setMailboxView("inbox")}
+              className={cn(
+                "px-4 py-2 text-sm font-medium rounded-md transition-colors",
+                mailboxView === "inbox"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+            >
+              Inbox
+            </button>
+            <button
+              onClick={() => setMailboxView("sent")}
+              className={cn(
+                "px-4 py-2 text-sm font-medium rounded-md transition-colors",
+                mailboxView === "sent"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+            >
+              Sent
+            </button>
+          </div>
+        </div>
+
         <MessageList
           selectedAccount={selectedAccount}
           selectedMessage={selectedMessage}
@@ -155,6 +184,7 @@ const Dashboard = () => {
           filterFlagged={filterFlagged}
           refreshTrigger={refreshTrigger}
           isUltimateInbox={!selectedAccount}
+          mailboxView={mailboxView}
         />
       </div>
       

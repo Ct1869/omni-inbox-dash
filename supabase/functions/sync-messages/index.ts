@@ -28,6 +28,68 @@ async function refreshAccessToken(refreshToken: string) {
   return await response.json();
 }
 
+// Batch fetch message details using parallel requests
+async function batchFetchMessages(messageIds: string[], accessToken: string) {
+  const batchSize = 10; // Process 10 messages in parallel to avoid rate limits
+  const allMessages = [];
+
+  for (let i = 0; i < messageIds.length; i += batchSize) {
+    const batch = messageIds.slice(i, i + batchSize);
+    const promises = batch.map(id =>
+      fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }).then(res => res.ok ? res.json() : null)
+    );
+    
+    const results = await Promise.all(promises);
+    allMessages.push(...results.filter(Boolean));
+  }
+
+  return allMessages;
+}
+
+// Parse message headers
+function parseHeaders(headers: any[]) {
+  const headerMap: Record<string, string> = {};
+  headers.forEach((h: any) => {
+    headerMap[h.name.toLowerCase()] = h.value;
+  });
+  return headerMap;
+}
+
+// Parse message body
+function parseBody(payload: any): { text: string; html: string } {
+  let text = "";
+  let html = "";
+
+  function extractParts(part: any) {
+    if (part.mimeType === "text/plain" && part.body?.data) {
+      text += atob(part.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+    } else if (part.mimeType === "text/html" && part.body?.data) {
+      html += atob(part.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+    }
+
+    if (part.parts) {
+      part.parts.forEach(extractParts);
+    }
+  }
+
+  if (payload.body?.data) {
+    const decoded = atob(payload.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+    if (payload.mimeType === "text/html") {
+      html = decoded;
+    } else {
+      text = decoded;
+    }
+  }
+
+  if (payload.parts) {
+    payload.parts.forEach(extractParts);
+  }
+
+  return { text, html };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -39,7 +101,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { accountId } = await req.json();
+    const { accountId, pageToken = null, maxMessages = 1000 } = await req.json();
 
     // Create sync job
     const { data: syncJob } = await supabase
@@ -94,114 +156,147 @@ serve(async (req) => {
         .eq("account_id", accountId);
     }
 
-    // Fetch messages from Gmail (last 500) - ALL messages, not just INBOX
-    const gmailResponse = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500",
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    let allMessageIds = [];
+    let nextPageToken = pageToken;
+    let totalFetched = 0;
 
-    if (!gmailResponse.ok) {
-      throw new Error("Failed to fetch messages from Gmail");
+    // Fetch messages with pagination
+    console.log(`Starting sync for account ${accountId}, max messages: ${maxMessages}`);
+    
+    while (totalFetched < maxMessages) {
+      const pageSize = Math.min(500, maxMessages - totalFetched);
+      let url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}`;
+      
+      if (nextPageToken) {
+        url += `&pageToken=${nextPageToken}`;
+      }
+
+      const gmailResponse = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+
+      if (!gmailResponse.ok) {
+        throw new Error("Failed to fetch messages from Gmail");
+      }
+
+      const data = await gmailResponse.json();
+      
+      if (!data.messages || data.messages.length === 0) {
+        console.log("No more messages to fetch");
+        break;
+      }
+
+      allMessageIds.push(...data.messages);
+      totalFetched += data.messages.length;
+      
+      console.log(`Fetched ${data.messages.length} message IDs (total: ${totalFetched})`);
+
+      if (!data.nextPageToken) {
+        console.log("No more pages available");
+        break;
+      }
+
+      nextPageToken = data.nextPageToken;
     }
 
-    const { messages } = await gmailResponse.json();
-    
-    if (!messages || messages.length === 0) {
+    if (allMessageIds.length === 0) {
+      await supabase
+        .from("sync_jobs")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          messages_synced: 0,
+        })
+        .eq("id", syncJob.id);
+
       return new Response(
-        JSON.stringify({ success: true, synced: 0 }),
+        JSON.stringify({ success: true, synced: 0, hasMore: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    console.log(`Fetching full details for ${allMessageIds.length} messages using batch API...`);
+
+    // Batch fetch all message details
+    const messageIds = allMessageIds.map((m: any) => m.id);
+    const messages = await batchFetchMessages(messageIds, accessToken);
+    
+    console.log(`Successfully fetched ${messages.length} full messages`);
+
     let syncedCount = 0;
+    let unreadCount = 0;
 
-    // Fetch full message details in batches (process up to 200 messages)
-    for (const message of messages.slice(0, 200)) {
+    // Process and upsert messages
+    for (const msgData of messages) {
       try {
-        const detailResponse = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
+        const headers = parseHeaders(msgData.payload.headers);
+        const body = parseBody(msgData.payload);
 
-        if (!detailResponse.ok) continue;
+        const isUnread = msgData.labelIds?.includes("UNREAD") || false;
+        const isStarred = msgData.labelIds?.includes("STARRED") || false;
+        const isPinned = msgData.labelIds?.includes("PINNED") || false;
 
-        const detail = await detailResponse.json();
-        const headers = detail.payload.headers;
+        if (isUnread) unreadCount++;
 
-        const getHeader = (name: string) => 
-          headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+        // Extract recipient emails
+        const toHeader = headers["to"] || "";
+        const ccHeader = headers["cc"] || "";
+        const bccHeader = headers["bcc"] || "";
+        const allRecipients = [toHeader, ccHeader, bccHeader]
+          .filter(Boolean)
+          .join(", ");
+        const recipientEmails = allRecipients
+          .split(",")
+          .map(email => email.trim().match(/<(.+)>/)?.[1] || email.trim())
+          .filter(Boolean);
 
-        const subject = getHeader("Subject");
-        const from = getHeader("From");
-        const to = getHeader("To");
-        const date = getHeader("Date");
+        // Check for attachments
+        let hasAttachments = false;
+        let attachmentCount = 0;
 
-        // Parse sender email and name
-        const fromMatch = from.match(/(.+?)\s*<(.+?)>/) || [null, from, from];
-        const senderName = fromMatch[1]?.trim() || "";
-        const senderEmail = fromMatch[2]?.trim() || from;
-
-        // Get message body - handle nested parts recursively
-        let bodyHtml = "";
-        let bodyText = "";
-        
-        function extractBody(payload: any) {
-          if (payload.body?.data) {
-            const decoded = atob(payload.body.data.replace(/-/g, "+").replace(/_/g, "/"));
-            if (payload.mimeType === "text/html") {
-              bodyHtml = bodyHtml || decoded;
-            } else if (payload.mimeType === "text/plain") {
-              bodyText = bodyText || decoded;
-            }
+        function countAttachments(part: any) {
+          if (part.filename && part.body?.attachmentId) {
+            hasAttachments = true;
+            attachmentCount++;
           }
-          
-          if (payload.parts) {
-            for (const part of payload.parts) {
-              extractBody(part);
-            }
+          if (part.parts) {
+            part.parts.forEach(countAttachments);
           }
         }
-        
-        extractBody(detail.payload);
-        
-        // Fallback to snippet if no body found
-        if (!bodyHtml && !bodyText) {
-          bodyText = detail.snippet || "";
+
+        if (msgData.payload.parts) {
+          msgData.payload.parts.forEach(countAttachments);
         }
 
-        const isUnread = detail.labelIds?.includes("UNREAD") || false;
-        const isStarred = detail.labelIds?.includes("STARRED") || false;
-        const hasAttachments = detail.payload.parts?.some((p: any) => p.filename) || false;
-        const attachmentCount = detail.payload.parts?.filter((p: any) => p.filename).length || 0;
+        const messageRecord = {
+          account_id: accountId,
+          message_id: msgData.id,
+          thread_id: msgData.threadId,
+          subject: headers["subject"] || "(No Subject)",
+          sender_name: headers["from"]?.split("<")[0].trim() || "",
+          sender_email: headers["from"]?.match(/<(.+)>/)?.[1] || headers["from"] || "",
+          recipient_emails: recipientEmails,
+          snippet: msgData.snippet || "",
+          body_text: body.text || "",
+          body_html: body.html || "",
+          received_at: new Date(parseInt(msgData.internalDate)).toISOString(),
+          labels: msgData.labelIds || [],
+          is_read: !isUnread,
+          is_starred: isStarred,
+          is_pinned: isPinned,
+          has_attachments: hasAttachments,
+          attachment_count: attachmentCount,
+          updated_at: new Date().toISOString(),
+        };
 
-        // Upsert message
         await supabase
           .from("cached_messages")
-          .upsert({
-            account_id: accountId,
-            message_id: detail.id,
-            thread_id: detail.threadId,
-            subject,
-            snippet: detail.snippet,
-            sender_name: senderName,
-            sender_email: senderEmail,
-            recipient_emails: [to],
-            body_html: bodyHtml,
-            body_text: bodyText,
-            is_read: !isUnread,
-            is_starred: isStarred,
-            has_attachments: hasAttachments,
-            attachment_count: attachmentCount,
-            labels: detail.labelIds || [],
-            received_at: new Date(date || Date.now()).toISOString(),
-          }, {
-            onConflict: "account_id,message_id",
-          });
+          .upsert(messageRecord, { onConflict: "message_id" });
 
         syncedCount++;
 
-        // Update sync job progress
-        if (syncJob) {
+        // Update sync job progress every 50 messages
+        if (syncedCount % 50 === 0) {
           await supabase
             .from("sync_jobs")
             .update({
@@ -209,82 +304,87 @@ serve(async (req) => {
               updated_at: new Date().toISOString(),
             })
             .eq("id", syncJob.id);
+          
+          console.log(`Progress: ${syncedCount}/${messages.length} messages synced`);
         }
-      } catch (err) {
-        console.error("Error syncing message:", err);
+      } catch (error) {
+        console.error(`Error processing message ${msgData.id}:`, error);
       }
     }
 
-    // Update account last synced time and unread count
-    const { data: unreadMessages } = await supabase
-      .from("cached_messages")
-      .select("id", { count: "exact" })
-      .eq("account_id", accountId)
-      .eq("is_read", false);
+    // Update sync job as completed
+    await supabase
+      .from("sync_jobs")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        messages_synced: syncedCount,
+      })
+      .eq("id", syncJob.id);
 
+    // Update account's last synced time and unread count
     await supabase
       .from("email_accounts")
       .update({
         last_synced_at: new Date().toISOString(),
-        unread_count: unreadMessages?.length || 0,
+        unread_count: unreadCount,
       })
       .eq("id", accountId);
 
-    // Mark sync job as completed
-    if (syncJob) {
-      await supabase
-        .from("sync_jobs")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          messages_synced: syncedCount,
-        })
-        .eq("id", syncJob.id);
-    }
+    console.log(`Sync completed: ${syncedCount} messages synced, ${unreadCount} unread`);
 
     return new Response(
-      JSON.stringify({ success: true, synced: syncedCount }),
+      JSON.stringify({
+        success: true,
+        synced: syncedCount,
+        hasMore: !!nextPageToken,
+        nextPageToken: nextPageToken,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Sync error:", error);
-
-    // Mark sync job as failed
+    
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Try to update sync job if possible
     try {
-      const supabaseClient = createClient(
+      const supabase = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
       );
       
-      const requestBody = await req.clone().json();
-      const { accountId } = requestBody;
+      const { accountId } = await req.json();
       
-      const { data: recentJob } = await supabaseClient
+      // Find the most recent processing job for this account
+      const { data: jobs } = await supabase
         .from("sync_jobs")
         .select("id")
         .eq("account_id", accountId)
-        .eq("status", "running")
+        .eq("status", "processing")
         .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (recentJob) {
-        await supabaseClient
+      if (jobs && jobs.length > 0) {
+        await supabase
           .from("sync_jobs")
           .update({
             status: "failed",
             completed_at: new Date().toISOString(),
-            error_message: error instanceof Error ? error.message : "Unknown error",
+            error_message: errorMessage,
           })
-          .eq("id", recentJob.id);
+          .eq("id", jobs[0].id);
       }
-    } catch (err) {
-      console.error("Error updating sync job on failure:", err);
+    } catch (updateError) {
+      console.error("Failed to update sync job:", updateError);
     }
 
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: errorMessage }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   }
 });
