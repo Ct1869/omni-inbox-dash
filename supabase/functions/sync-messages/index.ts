@@ -41,6 +41,17 @@ serve(async (req) => {
 
     const { accountId } = await req.json();
 
+    // Create sync job
+    const { data: syncJob } = await supabase
+      .from("sync_jobs")
+      .insert({
+        account_id: accountId,
+        status: "running",
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
     // Get account and tokens
     const { data: account } = await supabase
       .from("email_accounts")
@@ -49,6 +60,16 @@ serve(async (req) => {
       .single();
 
     if (!account || !account.oauth_tokens) {
+      if (syncJob) {
+        await supabase
+          .from("sync_jobs")
+          .update({
+            status: "failed",
+            completed_at: new Date().toISOString(),
+            error_message: "Account or tokens not found",
+          })
+          .eq("id", syncJob.id);
+      }
       throw new Error("Account or tokens not found");
     }
 
@@ -178,6 +199,17 @@ serve(async (req) => {
           });
 
         syncedCount++;
+
+        // Update sync job progress
+        if (syncJob) {
+          await supabase
+            .from("sync_jobs")
+            .update({
+              messages_synced: syncedCount,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", syncJob.id);
+        }
       } catch (err) {
         console.error("Error syncing message:", err);
       }
@@ -198,12 +230,58 @@ serve(async (req) => {
       })
       .eq("id", accountId);
 
+    // Mark sync job as completed
+    if (syncJob) {
+      await supabase
+        .from("sync_jobs")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          messages_synced: syncedCount,
+        })
+        .eq("id", syncJob.id);
+    }
+
     return new Response(
       JSON.stringify({ success: true, synced: syncedCount }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Sync error:", error);
+
+    // Mark sync job as failed
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      );
+      
+      const requestBody = await req.clone().json();
+      const { accountId } = requestBody;
+      
+      const { data: recentJob } = await supabaseClient
+        .from("sync_jobs")
+        .select("id")
+        .eq("account_id", accountId)
+        .eq("status", "running")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (recentJob) {
+        await supabaseClient
+          .from("sync_jobs")
+          .update({
+            status: "failed",
+            completed_at: new Date().toISOString(),
+            error_message: error instanceof Error ? error.message : "Unknown error",
+          })
+          .eq("id", recentJob.id);
+      }
+    } catch (err) {
+      console.error("Error updating sync job on failure:", err);
+    }
+
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

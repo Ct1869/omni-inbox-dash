@@ -12,14 +12,17 @@ import {
   ChevronDown,
   Plus,
   MoreHorizontal,
-  RefreshCcw
+  RefreshCcw,
+  Check
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Account } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSyncStatus } from "@/hooks/useSyncStatus";
 
 
 
@@ -37,6 +40,8 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
   const [isSyncing, setIsSyncing] = useState(false);
   const userEmail = localStorage.getItem("userEmail") || "user@email.com";
   const userName = userEmail.split("@")[0];
+  
+  const syncStatuses = useSyncStatus(accounts.map(a => a.id));
 
   const handleSyncNow = async () => {
     if (!selectedAccount || isSyncing) return;
@@ -171,33 +176,74 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
                   <div key={i} className="h-12 bg-muted/20 animate-pulse rounded-md mx-1" />
                 ))
               ) : (
-                accounts.map((account) => (
-                  <button
-                    key={account.id}
-                    onClick={() => onSelectAccount(account)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
-                      selectedAccount?.id === account.id
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent/50"
-                    )}
-                  >
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        {getInitials(account.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 text-left min-w-0">
-                      <div className="font-medium text-sm truncate">{account.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">{account.email}</div>
-                    </div>
-                    {account.unreadCount > 0 && (
-                      <Badge variant="secondary" className="ml-2 bg-primary text-primary-foreground h-5 px-1.5 text-xs">
-                        {account.unreadCount}
-                      </Badge>
-                    )}
-                  </button>
-                ))
+                accounts.map((account) => {
+                  const syncStatus = syncStatuses.get(account.id);
+                  const isAccountSyncing = syncStatus?.status === "running";
+                  const isSyncCompleted = syncStatus?.status === "completed";
+                  const isSyncFailed = syncStatus?.status === "failed";
+
+                  return (
+                    <button
+                      key={account.id}
+                      onClick={() => onSelectAccount(account)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                        selectedAccount?.id === account.id
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-accent/50"
+                      )}
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                          {getInitials(account.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="font-medium text-sm truncate">{account.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">{account.email}</div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {/* Sync status indicator */}
+                        {isAccountSyncing && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <RefreshCcw className="h-3.5 w-3.5 text-blue-500 animate-spin" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Syncing... {syncStatus.messagesSynced} messages</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        
+                        {isSyncFailed && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">Sync failed: {syncStatus.errorMessage}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        
+                        {isSyncCompleted && (
+                          <Check className="h-3.5 w-3.5 text-green-500 animate-fade-in" />
+                        )}
+
+                        {account.unreadCount > 0 && (
+                          <Badge variant="secondary" className="bg-primary text-primary-foreground h-5 px-1.5 text-xs">
+                            {account.unreadCount}
+                          </Badge>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
         </div>

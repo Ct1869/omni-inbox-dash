@@ -122,6 +122,17 @@ serve(async (req) => {
     const startHistoryId = watch?.history_id || "1";
     console.log(`Fetching history from ${startHistoryId} to ${historyId}`);
 
+    // Create sync job
+    const { data: syncJob } = await supabase
+      .from("sync_jobs")
+      .insert({
+        account_id: account.id,
+        status: "running",
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
     const historyResponse = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=${startHistoryId}&historyTypes=messageAdded&historyTypes=messageDeleted`,
       {
@@ -131,6 +142,17 @@ serve(async (req) => {
 
     if (!historyResponse.ok) {
       console.error("Failed to fetch history:", await historyResponse.text());
+      // Mark sync job as failed
+      if (syncJob) {
+        await supabase
+          .from("sync_jobs")
+          .update({
+            status: "failed",
+            completed_at: new Date().toISOString(),
+            error_message: "Failed to fetch history from Gmail",
+          })
+          .eq("id", syncJob.id);
+      }
       return new Response(JSON.stringify({ success: false }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -250,6 +272,17 @@ serve(async (req) => {
         });
 
         syncedCount++;
+
+        // Update sync job progress
+        if (syncJob) {
+          await supabase
+            .from("sync_jobs")
+            .update({
+              messages_synced: syncedCount,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", syncJob.id);
+        }
       } catch (error) {
         console.error(`Error processing message ${messageId}:`, error);
       }
@@ -276,6 +309,18 @@ serve(async (req) => {
       })
       .eq("id", account.id);
 
+    // Mark sync job as completed
+    if (syncJob) {
+      await supabase
+        .from("sync_jobs")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          messages_synced: syncedCount,
+        })
+        .eq("id", syncJob.id);
+    }
+
     console.log(
       `Sync complete for ${emailAddress}: ${syncedCount} messages synced, ${count} unread`
     );
@@ -288,6 +333,51 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Webhook error:", error);
+
+    // Mark sync job as failed if it exists
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      );
+
+      const requestBody = await req.clone().json();
+      const decodedData = JSON.parse(atob(requestBody.message?.data || ""));
+      const emailAddress = decodedData?.emailAddress;
+
+      if (emailAddress) {
+        const { data: account } = await supabaseClient
+          .from("email_accounts")
+          .select("id")
+          .eq("email", emailAddress)
+          .single();
+
+        if (account) {
+          const { data: recentJob } = await supabaseClient
+            .from("sync_jobs")
+            .select("id")
+            .eq("account_id", account.id)
+            .eq("status", "running")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (recentJob) {
+            await supabaseClient
+              .from("sync_jobs")
+              .update({
+                status: "failed",
+                completed_at: new Date().toISOString(),
+                error_message: error instanceof Error ? error.message : "Unknown error",
+              })
+              .eq("id", recentJob.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error updating sync job on failure:", err);
+    }
+
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       {
