@@ -380,9 +380,9 @@ const MessageList = ({
               />
             ))}
             {hasMore && (
-              <div className="p-4 text-center">
+              <div className="p-4">
                 <Button 
-                  variant="ghost" 
+                  variant="outline" 
                   onClick={loadMoreMessages}
                   disabled={isLoading}
                   className="w-full"
