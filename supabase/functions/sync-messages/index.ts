@@ -46,7 +46,7 @@ serve(async (req) => {
       .from("sync_jobs")
       .insert({
         account_id: accountId,
-        status: "running",
+        status: "processing",
         started_at: new Date().toISOString(),
       })
       .select()
