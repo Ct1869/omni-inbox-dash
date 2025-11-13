@@ -380,12 +380,12 @@ const MessageList = ({
               />
             ))}
             {hasMore && (
-              <div className="p-4">
+              <div className="p-4 bg-background">
                 <Button 
                   variant="outline" 
                   onClick={loadMoreMessages}
                   disabled={isLoading}
-                  className="w-full"
+                  className="w-full bg-background hover:bg-muted border-border"
                 >
                   {isLoading ? (
                     <>
