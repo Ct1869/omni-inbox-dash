@@ -126,6 +126,55 @@ serve(async (req) => {
 
     if (tokenError) throw tokenError;
 
+    // Set up Gmail watch for push notifications
+    const GOOGLE_PROJECT_ID = Deno.env.get("GOOGLE_PROJECT_ID");
+    
+    if (GOOGLE_PROJECT_ID) {
+      try {
+        console.log("Setting up Gmail watch for push notifications...");
+        
+        const watchResponse = await fetch(
+          "https://gmail.googleapis.com/gmail/v1/users/me/watch",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${tokens.access_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              topicName: `projects/${GOOGLE_PROJECT_ID}/topics/gmail-notifications`,
+              labelIds: ["INBOX", "SENT", "DRAFT", "SPAM", "TRASH"],
+            }),
+          }
+        );
+
+        if (watchResponse.ok) {
+          const watchData = await watchResponse.json();
+          console.log("Gmail watch created:", watchData);
+
+          // Store watch info in database
+          const expiresAt = new Date(Number(watchData.expiration));
+          
+          await supabase.from("gmail_watches").upsert({
+            account_id: accountId,
+            history_id: watchData.historyId,
+            expiration: expiresAt.toISOString(),
+            is_active: true,
+          });
+
+          console.log("Watch info stored in database");
+        } else {
+          const error = await watchResponse.text();
+          console.error("Failed to create watch:", error);
+        }
+      } catch (watchError) {
+        console.error("Error setting up watch:", watchError);
+        // Continue even if watch setup fails
+      }
+    } else {
+      console.log("GOOGLE_PROJECT_ID not set, skipping watch setup");
+    }
+
     // Trigger initial sync
     await supabase.from("sync_jobs").insert({
       account_id: accountId,
