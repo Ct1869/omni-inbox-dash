@@ -118,11 +118,11 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="h-screen flex overflow-hidden bg-background">
-      {/* Sidebar - hidden on mobile when message selected */}
+    <div className="h-screen flex flex-col lg:flex-row overflow-hidden bg-background">
+      {/* Sidebar - hidden on mobile when account or message selected */}
       <div className={cn(
-        "flex-shrink-0",
-        selectedMessage && "hidden lg:block"
+        "flex-shrink-0 h-full",
+        (selectedAccount || selectedMessage) && "hidden lg:flex"
       )}>
         <AccountsSidebar
           selectedAccount={selectedAccount}
@@ -140,10 +140,11 @@ const Dashboard = () => {
         />
       </div>
       
-      {/* Message List - hidden on mobile when message selected */}
+      {/* Message List - shown when account selected on mobile, always on desktop */}
       <div className={cn(
-        "flex-shrink-0",
-        selectedMessage && "hidden lg:block"
+        "flex-shrink-0 h-full",
+        selectedMessage && "hidden lg:flex",
+        !selectedAccount && "hidden lg:flex"
       )}>
         <MessageList
           selectedAccount={selectedAccount}
@@ -157,10 +158,10 @@ const Dashboard = () => {
         />
       </div>
       
-      {/* Message Detail - full width on mobile, normal on desktop */}
+      {/* Message Detail - shown when message selected */}
       <div className={cn(
-        "flex-1 min-w-0",
-        !selectedMessage && "hidden lg:block"
+        "flex-1 min-w-0 h-full",
+        !selectedMessage && "hidden lg:flex"
       )}>
         <MessageDetail
           message={selectedMessage}
