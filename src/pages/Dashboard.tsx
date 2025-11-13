@@ -4,6 +4,7 @@ import AccountsSidebar from "@/components/dashboard/AccountsSidebar";
 import MessageList from "@/components/dashboard/MessageList";
 import MessageDetail from "@/components/dashboard/MessageDetail";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import ComposeDialog from "@/components/dashboard/ComposeDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -29,6 +30,7 @@ export interface Message {
   isFlagged: boolean;
   hasAttachments: boolean;
   labels: string[];
+  messageId?: string;
 }
 
 const Dashboard = () => {
@@ -40,6 +42,7 @@ const Dashboard = () => {
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterFlagged, setFilterFlagged] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -123,17 +126,23 @@ const Dashboard = () => {
         }}
         onConnectGmail={initiateGmailOAuth}
         onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+        onCompose={() => {
+          if (selectedAccount) {
+            setIsComposeOpen(true);
+          }
+        }}
       />
       
-      <MessageList
-        selectedAccount={selectedAccount}
-        selectedMessage={selectedMessage}
-        onSelectMessage={setSelectedMessage}
-        searchQuery={searchQuery}
-        filterUnread={filterUnread}
-        filterFlagged={filterFlagged}
-        refreshTrigger={refreshTrigger}
-      />
+        <MessageList
+          selectedAccount={selectedAccount}
+          selectedMessage={selectedMessage}
+          onSelectMessage={setSelectedMessage}
+          searchQuery={searchQuery}
+          filterUnread={filterUnread}
+          filterFlagged={filterFlagged}
+          refreshTrigger={refreshTrigger}
+          isUltimateInbox={!selectedAccount}
+        />
       
       <MessageDetail
         message={selectedMessage}
@@ -143,6 +152,14 @@ const Dashboard = () => {
           setSelectedMessage(null);
         }}
       />
+      {selectedAccount && (
+        <ComposeDialog
+          open={isComposeOpen}
+          onOpenChange={setIsComposeOpen}
+          accountId={selectedAccount.id}
+          accountEmail={selectedAccount.email}
+        />
+      )}
     </div>
   );
 };

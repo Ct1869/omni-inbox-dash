@@ -73,9 +73,9 @@ serve(async (req) => {
         .eq("account_id", accountId);
     }
 
-    // Fetch messages from Gmail (last 100)
+    // Fetch messages from Gmail (last 100) - ALL messages, not just INBOX
     const gmailResponse = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&labelIds=INBOX",
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100",
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
 

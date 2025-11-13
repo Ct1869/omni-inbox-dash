@@ -31,6 +31,7 @@ interface MessageListProps {
   filterUnread: boolean;
   filterFlagged: boolean;
   refreshTrigger: number;
+  isUltimateInbox?: boolean;
 }
 
 const MessageList = ({
@@ -41,25 +42,35 @@ const MessageList = ({
   filterUnread,
   filterFlagged,
   refreshTrigger,
+  isUltimateInbox = false,
 }: MessageListProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [localSearch, setLocalSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isMarkingRead, setIsMarkingRead] = useState(false);
 
   useEffect(() => {
     const fetchMessages = async () => {
-      if (!selectedAccount) {
-        setMessages([]);
-        return;
-      }
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('cached_messages')
-          .select('id, account_id, thread_id, sender_name, sender_email, subject, snippet, received_at, is_read, is_starred, has_attachments, labels')
-          .eq('account_id', selectedAccount.id)
+          .select('id, account_id, thread_id, sender_name, sender_email, subject, snippet, received_at, is_read, is_starred, has_attachments, labels, message_id');
+        
+        // If not ultimate inbox, filter by selected account
+        if (!isUltimateInbox && selectedAccount) {
+          query = query.eq('account_id', selectedAccount.id);
+        } else if (!isUltimateInbox && !selectedAccount) {
+          setMessages([]);
+          setIsLoading(false);
+          return;
+        }
+        
+        const { data, error } = await query
           .order('received_at', { ascending: false })
-          .limit(100);
+          .limit(200);
+        
         if (error) throw error;
         const mapped: Message[] = (data || []).map((m: any) => ({
           id: m.id,
@@ -73,6 +84,7 @@ const MessageList = ({
           isFlagged: m.is_starred,
           hasAttachments: m.has_attachments,
           labels: m.labels || [],
+          messageId: m.message_id,
         }));
         setMessages(mapped);
       } catch (err) {
@@ -83,7 +95,8 @@ const MessageList = ({
     };
 
     fetchMessages();
-  }, [selectedAccount, refreshTrigger]);
+    setSelectedIds(new Set());
+  }, [selectedAccount, refreshTrigger, isUltimateInbox]);
 
   const filteredMessages = messages.filter((msg) => {
     const query = (searchQuery || localSearch).toLowerCase();
@@ -112,7 +125,54 @@ const MessageList = ({
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  if (!selectedAccount) {
+  const handleToggleSelect = (messageId: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleMarkSelectedAsRead = async () => {
+    if (selectedIds.size === 0) return;
+    setIsMarkingRead(true);
+    
+    try {
+      // Group by account
+      const messagesByAccount = new Map<string, string[]>();
+      messages.forEach(msg => {
+        if (selectedIds.has(msg.id) && msg.messageId) {
+          const accountMsgs = messagesByAccount.get(msg.accountId) || [];
+          accountMsgs.push(msg.messageId);
+          messagesByAccount.set(msg.accountId, accountMsgs);
+        }
+      });
+
+      // Mark as read for each account
+      for (const [accountId, messageIds] of messagesByAccount.entries()) {
+        await supabase.functions.invoke('send-reply', {
+          body: {
+            accountId,
+            messageIds,
+            action: 'markAsRead',
+          },
+        });
+      }
+      
+      setSelectedIds(new Set());
+      // Refresh will happen via parent
+    } catch (err) {
+      console.error('Mark as read error:', err);
+    } finally {
+      setIsMarkingRead(false);
+    }
+  };
+
+  if (!selectedAccount && !isUltimateInbox) {
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
         <div className="text-center max-w-sm">
@@ -131,20 +191,21 @@ const MessageList = ({
   return (
     <div className="w-[420px] border-r border-border bg-card flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-border space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold flex items-center gap-2">
-            <Inbox className="h-4 w-4" />
-            Inbox
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">
+            {isUltimateInbox ? 'Ultimate Inbox' : selectedAccount?.name}
           </h2>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Filter className="h-4 w-4" />
+          {selectedIds.size > 0 && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleMarkSelectedAsRead}
+              disabled={isMarkingRead}
+            >
+              Mark {selectedIds.size} as read
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          )}
         </div>
 
         {/* Search */}
@@ -155,7 +216,7 @@ const MessageList = ({
             placeholder="Search messages..."
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
-            className="pl-9 bg-input border-border h-9"
+            className="pl-9 bg-input border-border"
           />
         </div>
       </div>
@@ -184,9 +245,9 @@ const MessageList = ({
                 key={message.id}
                 message={message}
                 isSelected={selectedMessage?.id === message.id}
-                onClick={() => onSelectMessage(message)}
-                formatDate={formatDate}
-                getInitials={getInitials}
+                onSelect={onSelectMessage}
+                isCheckboxSelected={selectedIds.has(message.id)}
+                onToggleCheckbox={handleToggleSelect}
               />
             ))}
           </div>
@@ -199,68 +260,85 @@ const MessageList = ({
 interface MessageItemProps {
   message: Message;
   isSelected: boolean;
-  onClick: () => void;
-  formatDate: (date: string) => string;
-  getInitials: (name: string) => string;
+  onSelect: (message: Message) => void;
+  isCheckboxSelected: boolean;
+  onToggleCheckbox: (id: string) => void;
 }
 
-const MessageItem = ({ message, isSelected, onClick, formatDate, getInitials }: MessageItemProps) => {
+const MessageItem = ({ message, isSelected, onSelect, isCheckboxSelected, onToggleCheckbox }: MessageItemProps) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / 3600000);
+    
+    if (hours < 1) return "Just now";
+    if (hours < 24) return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    if (hours < 168) return date.toLocaleDateString("en-US", { weekday: "short" });
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+  };
+
   return (
-    <button
-      onClick={onClick}
+    <div
       className={cn(
-        "w-full text-left px-4 py-3 border-b border-border/50 transition-colors relative",
-        "hover:bg-hover-bg",
-        isSelected && "bg-selected-bg",
-        message.isUnread && "bg-unread-bg/50"
+        "px-4 py-3 border-b border-border cursor-pointer transition-colors hover:bg-accent/50",
+        isSelected && "bg-accent",
+        message.isUnread && "bg-accent/20"
       )}
     >
       <div className="flex items-start gap-3">
-        <Avatar className="h-9 w-9 flex-shrink-0">
-          <AvatarFallback className="bg-primary/10 text-primary text-xs">
-            {getInitials(message.from.name)}
-          </AvatarFallback>
-        </Avatar>
-        
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <div className="flex items-center gap-2 min-w-0">
+        <input
+          type="checkbox"
+          checked={isCheckboxSelected}
+          onChange={(e) => {
+            e.stopPropagation();
+            onToggleCheckbox(message.id);
+          }}
+          className="mt-3 h-4 w-4 rounded border-border"
+        />
+        <div onClick={() => onSelect(message)} className="flex items-start gap-3 flex-1">
+          <Avatar className="h-10 w-10 flex-shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary text-sm">
+              {getInitials(message.from.name)}
+            </AvatarFallback>
+          </Avatar>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
               <span className={cn(
                 "text-sm truncate",
-                message.isUnread ? "font-semibold text-foreground" : "text-foreground"
+                message.isUnread && "font-semibold"
               )}>
                 {message.from.name}
               </span>
-              {message.threadId && (
-                <span className="text-xs text-muted-foreground">[6]</span>
-              )}
+              <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                {formatDate(message.date)}
+              </span>
             </div>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {formatDate(message.date)}
-            </span>
-          </div>
-          
-          <div className={cn(
-            "text-sm mb-1 truncate",
-            message.isUnread ? "font-medium text-foreground" : "text-muted-foreground"
-          )}>
-            {message.subject}
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {message.isFlagged && (
-              <div className="w-2 h-2 rounded-full bg-accent" />
-            )}
-            {message.hasAttachments && (
-              <div className="w-2 h-2 rounded-full bg-primary" />
-            )}
-            {message.isUnread && (
-              <div className="w-2 h-2 rounded-full bg-accent" />
-            )}
+            
+            <div className={cn(
+              "text-sm truncate mb-1",
+              message.isUnread && "font-medium"
+            )}>
+              {message.subject}
+            </div>
+            
+            <div className="text-xs text-muted-foreground truncate">
+              {message.preview}
+            </div>
+            
+            <div className="flex items-center gap-2 mt-1">
+              {message.isFlagged && <Star className="h-3 w-3 fill-accent text-accent" />}
+              {message.hasAttachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
+            </div>
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 };
 

@@ -55,7 +55,7 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
       try {
         const { data, error } = await supabase
           .from('cached_messages')
-          .select('body_html, body_text, recipient_emails, received_at, has_attachments, attachment_count')
+          .select('body_html, body_text, recipient_emails, received_at, has_attachments, attachment_count, message_id')
           .eq('id', message.id)
           .maybeSingle();
         if (error) throw error;
@@ -65,6 +65,17 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
         setReceivedAt(data?.received_at ?? null);
         setHasAttachments(!!data?.has_attachments);
         setAttachmentCount(data?.attachment_count ?? 0);
+
+        // Mark as read when opening
+        if (message.isUnread && accountId && data?.message_id) {
+          supabase.functions.invoke('send-reply', {
+            body: {
+              accountId,
+              messageId: data.message_id,
+              markAsRead: true,
+            },
+          }).catch(err => console.error('Mark as read error:', err));
+        }
       } catch (err) {
         console.error('Load message detail error:', err);
         toast({ title: 'Failed to load message content', variant: 'destructive' });
@@ -74,7 +85,7 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
     };
 
     loadFullMessage();
-  }, [message, toast]);
+  }, [message, toast, accountId]);
 
   const handleReply = async () => {
     if (!replyText.trim() || !message || !accountId) return;
