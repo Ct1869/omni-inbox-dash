@@ -28,6 +28,7 @@ import type { Account, Message } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import AdvancedSearchDialog, { SearchFilters } from "./AdvancedSearchDialog";
+import { useMessageThreading } from "@/hooks/useMessageThreading";
 
 
 
@@ -282,36 +283,8 @@ const MessageList = ({
     return true;
   });
 
-  // Group messages by thread
-  const groupedMessages = threadingEnabled ? (() => {
-    const threads = new Map<string, Message[]>();
-    filteredMessages.forEach(msg => {
-      const threadId = msg.threadId || msg.id;
-      if (!threads.has(threadId)) {
-        threads.set(threadId, []);
-      }
-      threads.get(threadId)!.push(msg);
-    });
-    
-    // Sort messages within each thread by date
-    threads.forEach(thread => {
-      thread.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    });
-    
-    return Array.from(threads.entries()).map(([threadId, messages]) => ({
-      threadId,
-      messages,
-      latestMessage: messages[0],
-      count: messages.length
-    })).sort((a, b) => 
-      new Date(b.latestMessage.date).getTime() - new Date(a.latestMessage.date).getTime()
-    );
-  })() : filteredMessages.map(msg => ({
-    threadId: msg.id,
-    messages: [msg],
-    latestMessage: msg,
-    count: 1
-  }));
+  // Group messages by thread using custom hook
+  const groupedMessages = useMessageThreading(filteredMessages, threadingEnabled);
 
   const toggleThread = (threadId: string) => {
     setExpandedThreads(prev => {
@@ -527,7 +500,7 @@ const MessageList = ({
               <div key={i} className="h-20 bg-muted/20 animate-pulse rounded-md" />
             ))}
           </div>
-        ) : filteredMessages.length === 0 ? (
+        ) : groupedMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-center p-8">
             <div>
               <Inbox className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
@@ -538,16 +511,56 @@ const MessageList = ({
           </div>
         ) : (
           <div>
-            {filteredMessages.map((message) => (
-              <MessageItem
-                key={message.id}
-                message={message}
-                isSelected={selectedMessage?.id === message.id}
-                onSelect={onSelectMessage}
-                isCheckboxSelected={selectedIds.has(message.id)}
-                onToggleCheckbox={handleToggleSelect}
-              />
-            ))}
+            {groupedMessages.map((thread) => {
+              const isExpanded = expandedThreads.has(thread.threadId);
+              const isThreadSelected = thread.messages.some(m => m.id === selectedMessage?.id);
+              
+              return (
+                <div key={thread.threadId}>
+                  <div className="relative">
+                    {thread.count > 1 && threadingEnabled && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleThread(thread.threadId);
+                        }}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-1 hover:bg-muted rounded"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                    <MessageItem
+                      message={thread.latestMessage}
+                      isSelected={isThreadSelected}
+                      onSelect={onSelectMessage}
+                      isCheckboxSelected={selectedIds.has(thread.latestMessage.id)}
+                      onToggleCheckbox={handleToggleSelect}
+                      threadCount={threadingEnabled ? thread.count : undefined}
+                      hasThreadExpander={thread.count > 1 && threadingEnabled}
+                    />
+                  </div>
+                  {isExpanded && thread.count > 1 && (
+                    <div className="ml-8 border-l-2 border-border">
+                      {thread.messages.slice(1).map((message) => (
+                        <MessageItem
+                          key={message.id}
+                          message={message}
+                          isSelected={selectedMessage?.id === message.id}
+                          onSelect={onSelectMessage}
+                          isCheckboxSelected={selectedIds.has(message.id)}
+                          onToggleCheckbox={handleToggleSelect}
+                          isThreadedMessage
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {hasMore && !isLoadingMore && (
               <div className="p-4 bg-background">
                 <Button 
