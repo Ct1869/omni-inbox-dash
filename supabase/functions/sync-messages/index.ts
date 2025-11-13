@@ -94,9 +94,9 @@ serve(async (req) => {
         .eq("account_id", accountId);
     }
 
-    // Fetch messages from Gmail (last 100) - ALL messages, not just INBOX
+    // Fetch messages from Gmail (last 500) - ALL messages, not just INBOX
     const gmailResponse = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100",
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500",
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
 
@@ -115,8 +115,8 @@ serve(async (req) => {
 
     let syncedCount = 0;
 
-    // Fetch full message details in batches
-    for (const message of messages.slice(0, 50)) { // Limit to 50 for now
+    // Fetch full message details in batches (process up to 200 messages)
+    for (const message of messages.slice(0, 200)) {
       try {
         const detailResponse = await fetch(
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
