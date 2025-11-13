@@ -166,9 +166,9 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
+    <div className="flex-1 flex flex-col bg-background h-full overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border">
+      <div className="px-6 py-4 border-b border-border flex-shrink-0">
         <h1 className="text-xl font-semibold mb-2">{message.subject}</h1>
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
@@ -214,7 +214,7 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
       </div>
 
       {/* Message Body */}
-      <ScrollArea className="flex-1 scrollbar-thin">
+      <ScrollArea className="flex-1 overflow-auto">
         <div className="p-6 max-w-3xl">
           {loading ? (
             <div className="text-sm text-muted-foreground">Loading message…</div>
