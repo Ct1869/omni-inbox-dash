@@ -439,11 +439,10 @@ const MessageList = ({
       </div>
 
       {/* Messages List */}
-      <div className="flex-1 relative overflow-hidden">
-        <div 
-          ref={scrollViewportRef} 
-          className="absolute inset-0 overflow-auto scrollbar-thin"
-        >
+      <div 
+        className="flex-1 overflow-auto scrollbar-thin"
+        ref={scrollViewportRef}
+      >
         {isLoading && messages.length === 0 ? (
           <div className="p-2 space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -491,7 +490,6 @@ const MessageList = ({
             )}
           </div>
         )}
-        </div>
       </div>
     </div>
   );
