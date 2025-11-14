@@ -39,7 +39,20 @@ serve(async (req) => {
 
     // Extract the origin from state parameter
     const frontendOrigin = state?.replace("outlook_oauth_", "") || "";
-    const redirectUri = "https://vntkvhmpnvnqxdprgvjk.supabase.co/functions/v1/outlook-oauth";
+    
+    // Parse request body to get code and redirectUri from frontend
+    const body = await req.json();
+    const codeFromBody = body.code;
+    const redirectUri = body.redirectUri;
+    
+    const finalCode = code || codeFromBody;
+    
+    if (!finalCode) {
+      console.error("No code received. All params:", Object.fromEntries(url.searchParams.entries()));
+      throw new Error("Authorization code is required");
+    }
+    
+    console.log("Using redirect URI:", redirectUri);
 
     const MICROSOFT_CLIENT_ID = Deno.env.get("MICROSOFT_CLIENT_ID");
     const MICROSOFT_CLIENT_SECRET = Deno.env.get("MICROSOFT_CLIENT_SECRET");
@@ -51,7 +64,7 @@ serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        code,
+        code: finalCode,
         client_id: MICROSOFT_CLIENT_ID!,
         client_secret: MICROSOFT_CLIENT_SECRET!,
         redirect_uri: redirectUri,
@@ -83,16 +96,19 @@ serve(async (req) => {
     const userInfo = await userInfoResponse.json();
     console.log("User info received:", userInfo.mail || userInfo.userPrincipalName);
 
-    // Get current user from cookie
-    const cookies = req.headers.get("cookie") || "";
-    const accessToken = cookies.split(";")
-      .find(c => c.trim().startsWith("sb-access-token="))
-      ?.split("=")[1];
+    // Get current user from authorization header
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      console.error("No authorization header found");
+      throw new Error("Unauthorized - Please log in first");
+    }
 
-    const { data: { user } } = await supabase.auth.getUser(accessToken || "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    );
 
-    if (!user) {
-      console.error("No authenticated user found");
+    if (userError || !user) {
+      console.error("Failed to get user:", userError);
       throw new Error("Unauthorized - Please log in first");
     }
 
@@ -177,16 +193,20 @@ serve(async (req) => {
 
     console.log("Outlook OAuth completed successfully");
 
-    // Redirect back to dashboard with success message
-    const dashboardUrl = `${frontendOrigin}/dashboard?outlook_connected=${encodeURIComponent(userEmail)}`;
-    
-    return new Response(null, {
-      status: 302,
-      headers: {
-        ...corsHeaders,
-        "Location": dashboardUrl,
-      },
-    });
+    // Return account details
+    return new Response(
+      JSON.stringify({ 
+        account: {
+          email: userEmail,
+          name: userName,
+          id: accountId
+        }
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
   } catch (error) {
     console.error("Outlook OAuth error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
