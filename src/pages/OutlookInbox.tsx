@@ -127,6 +127,7 @@ const OutlookInbox = () => {
         onCompose={() => setIsComposeOpen(true)}
         onSyncAll={handleSyncAll}
         refreshTrigger={refreshTrigger}
+        provider="outlook"
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

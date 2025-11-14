@@ -47,9 +47,10 @@ interface AccountsSidebarProps {
   onCompose: () => void;
   onSyncAll?: () => void;
   refreshTrigger?: number;
+  provider?: 'gmail' | 'outlook';
 }
 
-const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onConnectOutlook, onRefresh, onCompose, onSyncAll, refreshTrigger }: AccountsSidebarProps) => {
+const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onConnectOutlook, onRefresh, onCompose, onSyncAll, refreshTrigger, provider }: AccountsSidebarProps) => {
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -180,10 +181,16 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
     const fetchAccounts = async () => {
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
+        let query = supabase
           .from('email_accounts')
           .select('id, name, email, unread_count, provider')
           .order('created_at', { ascending: false });
+        
+        if (provider) {
+          query = query.eq('provider', provider);
+        }
+        
+        const { data, error } = await query;
         if (error) throw error;
         const mapped: Account[] = (data || []).map((a: any) => ({
           id: a.id,
@@ -202,9 +209,12 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
     };
 
     fetchAccounts();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, provider]);
 
   const filteredAccounts = accounts.filter(account => {
+    // If provider prop is set, it's already filtered at fetch level
+    if (provider) return true;
+    // Otherwise use the accountFilter state
     if (accountFilter === 'all') return true;
     return account.provider === accountFilter;
   });
@@ -336,63 +346,67 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
       {/* Email Accounts */}
       <ScrollArea className="flex-1">
         <div className="p-2">
-          <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1">
-            Inboxes
-          </div>
-          
-          {/* Gmail Inbox */}
-          <button
-            onClick={() => {
-              setAccountFilter('gmail');
-              navigate('/dashboard/gmail');
-            }}
-            className={cn(
-              "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
-              !selectedAccount && accountFilter === 'gmail'
-                ? "bg-muted/50 text-foreground"
-                : "hover:bg-muted/30"
-            )}
-          >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-              <Mail className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
-              <div className="font-medium text-sm truncate">Gmail Inbox</div>
-              <div className="text-xs text-muted-foreground truncate">All Gmail accounts</div>
-            </div>
-            {gmailUnread > 0 && (
-              <Badge variant="secondary" className="shrink-0">
-                {gmailUnread}
-              </Badge>
-            )}
-          </button>
+          {!provider && (
+            <>
+              <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1">
+                Inboxes
+              </div>
+              
+              {/* Gmail Inbox */}
+              <button
+                onClick={() => {
+                  setAccountFilter('gmail');
+                  navigate('/dashboard/gmail');
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
+                  !selectedAccount && accountFilter === 'gmail'
+                    ? "bg-muted/50 text-foreground"
+                    : "hover:bg-muted/30"
+                )}
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                  <Mail className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
+                  <div className="font-medium text-sm truncate">Gmail Inbox</div>
+                  <div className="text-xs text-muted-foreground truncate">All Gmail accounts</div>
+                </div>
+                {gmailUnread > 0 && (
+                  <Badge variant="secondary" className="shrink-0">
+                    {gmailUnread}
+                  </Badge>
+                )}
+              </button>
 
-          {/* Outlook Inbox */}
-          <button
-            onClick={() => {
-              setAccountFilter('outlook');
-              navigate('/dashboard/outlook');
-            }}
-            className={cn(
-              "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
-              !selectedAccount && accountFilter === 'outlook'
-                ? "bg-muted/50 text-foreground"
-                : "hover:bg-muted/30"
-            )}
-          >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-              <Mail className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
-              <div className="font-medium text-sm truncate">Outlook Inbox</div>
-              <div className="text-xs text-muted-foreground truncate">All Outlook accounts</div>
-            </div>
-            {outlookUnread > 0 && (
-              <Badge variant="secondary" className="shrink-0">
-                {outlookUnread}
-              </Badge>
-            )}
-          </button>
+              {/* Outlook Inbox */}
+              <button
+                onClick={() => {
+                  setAccountFilter('outlook');
+                  navigate('/dashboard/outlook');
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
+                  !selectedAccount && accountFilter === 'outlook'
+                    ? "bg-muted/50 text-foreground"
+                    : "hover:bg-muted/30"
+                )}
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                  <Mail className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
+                  <div className="font-medium text-sm truncate">Outlook Inbox</div>
+                  <div className="text-xs text-muted-foreground truncate">All Outlook accounts</div>
+                </div>
+                {outlookUnread > 0 && (
+                  <Badge variant="secondary" className="shrink-0">
+                    {outlookUnread}
+                  </Badge>
+                )}
+              </button>
+            </>
+          )}
 
           <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1 mt-3">
             Email Accounts
@@ -510,6 +524,54 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                     </div>
                   );
                 })
+              )}
+            </div>
+            
+            {/* Connect Account Button */}
+            <div className="px-2 mt-3 pb-2">
+              {provider === 'gmail' ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={onConnectGmail}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Connect Gmail
+                </Button>
+              ) : provider === 'outlook' ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={onConnectOutlook}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Connect Outlook
+                </Button>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Connect Account
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48">
+                    <DropdownMenuItem onClick={onConnectGmail}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Connect Gmail
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={onConnectOutlook}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Connect Outlook
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
         </div>
