@@ -8,6 +8,8 @@ import ComposeDialog from "@/components/dashboard/ComposeDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 export interface Account {
   id: string;
@@ -45,6 +47,14 @@ const Dashboard = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [mailboxView, setMailboxView] = useState<"inbox" | "sent">("inbox");
+
+  // Online status and keyboard shortcuts
+  const isOnline = useOnlineStatus();
+  
+  useKeyboardShortcuts({
+    onCompose: useCallback(() => setIsComposeOpen(true), []),
+    onRefresh: useCallback(() => setRefreshTrigger(prev => prev + 1), []),
+  });
 
   // Check authentication
   useEffect(() => {
@@ -127,6 +137,19 @@ const Dashboard = () => {
     window.location.href = authUrl;
   }, []);
 
+  const handleSelectAccount = useCallback((account: Account | null) => {
+    setSelectedAccount(account);
+    setSelectedMessage(null);
+  }, []);
+
+  const handleSelectMessage = useCallback((message: Message | null) => {
+    setSelectedMessage(message);
+  }, []);
+
+  const handleSetMailboxView = useCallback((view: "inbox" | "sent") => {
+    setMailboxView(view);
+  }, []);
+
   const initiateOutlookOAuth = () => {
     const clientId = "491f8684-fa51-4089-87d0-c855fae0f88f";
     const redirectUri = "https://vntkvhmpnvnqxdprgvjk.supabase.co/functions/v1/outlook-oauth";
@@ -158,10 +181,7 @@ const Dashboard = () => {
       )}>
         <AccountsSidebar
           selectedAccount={selectedAccount}
-          onSelectAccount={(account) => {
-            setSelectedAccount(account);
-            setSelectedMessage(null);
-          }}
+          onSelectAccount={handleSelectAccount}
           onConnectGmail={initiateGmailOAuth}
           onConnectOutlook={initiateOutlookOAuth}
           onRefresh={() => setRefreshTrigger(prev => prev + 1)}
@@ -183,7 +203,7 @@ const Dashboard = () => {
         <div className="border-b border-border bg-background px-4 py-2">
           <div className="flex gap-2">
             <button
-              onClick={() => setMailboxView("inbox")}
+              onClick={() => handleSetMailboxView("inbox")}
               className={cn(
                 "px-4 py-2 text-sm font-medium rounded-md transition-colors",
                 mailboxView === "inbox"
@@ -194,7 +214,7 @@ const Dashboard = () => {
               Inbox
             </button>
             <button
-              onClick={() => setMailboxView("sent")}
+              onClick={() => handleSetMailboxView("sent")}
               className={cn(
                 "px-4 py-2 text-sm font-medium rounded-md transition-colors",
                 mailboxView === "sent"
@@ -210,7 +230,7 @@ const Dashboard = () => {
         <MessageList
           selectedAccount={selectedAccount}
           selectedMessage={selectedMessage}
-          onSelectMessage={setSelectedMessage}
+          onSelectMessage={handleSelectMessage}
           searchQuery={searchQuery}
           filterUnread={filterUnread}
           filterFlagged={filterFlagged}

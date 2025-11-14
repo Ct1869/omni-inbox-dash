@@ -158,7 +158,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-6 w-6"
+                className="min-h-[44px] min-w-[44px]"
                 title="Add email account"
               >
                 <Plus className="h-4 w-4" />
@@ -175,7 +175,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" className="h-6 w-6">
+          <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]">
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </div>
