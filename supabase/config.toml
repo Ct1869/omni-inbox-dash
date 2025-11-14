@@ -4,7 +4,7 @@ project_id = "vntkvhmpnvnqxdprgvjk"
 verify_jwt = true
 
 [functions.outlook-oauth]
-verify_jwt = false
+verify_jwt = true
 
 [functions.sync-messages]
 verify_jwt = false
