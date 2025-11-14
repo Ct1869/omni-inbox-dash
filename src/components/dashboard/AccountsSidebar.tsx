@@ -526,54 +526,6 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                 })
               )}
             </div>
-            
-            {/* Connect Account Button */}
-            <div className="px-2 mt-3 pb-2">
-              {provider === 'gmail' ? (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full"
-                  onClick={onConnectGmail}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Connect Gmail
-                </Button>
-              ) : provider === 'outlook' ? (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full"
-                  onClick={onConnectOutlook}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Connect Outlook
-                </Button>
-              ) : (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Connect Account
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem onClick={onConnectGmail}>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Connect Gmail
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={onConnectOutlook}>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Connect Outlook
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
         </div>
       </ScrollArea>
     </aside>
