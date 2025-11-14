@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import type { Account, Message } from "@/pages/Dashboard";
-import { Mail } from "lucide-react";
+import { Mail, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -134,18 +134,13 @@ const OutlookInbox = () => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <DashboardHeader
-          searchQuery=""
-          onSearchChange={() => {}}
-          filterUnread={false}
-          onFilterUnreadChange={() => {}}
-          filterFlagged={false}
-          onFilterFlaggedChange={() => {}}
-          onLogout={handleLogout}
-        />
-
-        {/* Provider Toggle */}
-        <div className="border-b bg-muted/30 px-4 py-2 flex items-center justify-between">
+        {/* Header with provider toggle */}
+        <div className="h-14 border-b bg-background flex items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {outlookAccounts.length} account{outlookAccounts.length !== 1 ? 's' : ''}
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -161,16 +156,20 @@ const OutlookInbox = () => {
               size="sm"
               onClick={() => navigate('/dashboard/outlook')}
               className={cn(
-                "gap-2 font-medium",
+                "gap-2",
                 "bg-primary text-primary-foreground hover:bg-primary/90"
               )}
             >
               <Mail className="h-4 w-4" />
               Outlook
             </Button>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {outlookAccounts.length} account{outlookAccounts.length !== 1 ? 's' : ''}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
