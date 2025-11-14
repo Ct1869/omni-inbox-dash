@@ -25,7 +25,7 @@ serve(async (req) => {
     
     const { data: accounts, error: accountsError } = await supabase
       .from("email_accounts")
-      .select("id, email, last_synced_at")
+      .select("id, email, last_synced_at, provider")
       .eq("is_active", true)
       .or(`last_synced_at.is.null,last_synced_at.lt.${fiveMinutesAgo}`)
       .limit(5); // Process max 5 accounts per run to avoid rate limits
@@ -78,7 +78,8 @@ serve(async (req) => {
         }
 
         // Trigger sync for this account (max 200 messages per sync)
-        const { data, error } = await supabase.functions.invoke("sync-messages", {
+        const functionName = account.provider === 'outlook' ? 'sync-outlook-messages' : 'sync-messages';
+        const { data, error } = await supabase.functions.invoke(functionName, {
           body: { 
             accountId: account.id,
             maxMessages: 200 // Limit to 200 messages per background sync

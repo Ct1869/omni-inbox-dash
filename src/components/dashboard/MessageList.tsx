@@ -38,6 +38,8 @@ interface MessageListProps {
   refreshTrigger: number;
   isUltimateInbox?: boolean;
   mailboxView: "inbox" | "sent";
+  onMailboxViewChange?: (view: "inbox" | "sent") => void;
+  provider?: "gmail" | "outlook";
 }
 
 const MessageList = ({
@@ -50,6 +52,8 @@ const MessageList = ({
   refreshTrigger,
   isUltimateInbox = false,
   mailboxView,
+  onMailboxViewChange,
+  provider,
 }: MessageListProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -82,6 +86,22 @@ const MessageList = ({
           setMessages([]);
           setIsLoading(false);
           return;
+        } else if (isUltimateInbox && provider) {
+          // Filter by provider in ultimate inbox mode
+          const { data: accounts } = await supabase
+            .from('email_accounts')
+            .select('id')
+            .eq('provider', provider)
+            .eq('is_active', true);
+          
+          if (accounts && accounts.length > 0) {
+            const accountIds = accounts.map(a => a.id);
+            query = query.in('account_id', accountIds);
+          } else {
+            setMessages([]);
+            setIsLoading(false);
+            return;
+          }
         }
 
         // Apply mailbox filter based on account provider
@@ -147,8 +167,22 @@ const MessageList = ({
           table: 'cached_messages',
           filter: selectedAccount ? `account_id=eq.${selectedAccount.id}` : undefined,
         },
-        (payload) => {
+        async (payload) => {
           console.log('Real-time message update:', payload);
+          
+          // In ultimate inbox mode with provider filter, check if message is from correct provider
+          if (isUltimateInbox && provider && payload.new) {
+            const m = payload.new as any;
+            const { data: account } = await supabase
+              .from('email_accounts')
+              .select('provider')
+              .eq('id', m.account_id)
+              .single();
+            
+            if (!account || account.provider !== provider) {
+              return; // Skip messages from other providers
+            }
+          }
           
           if (payload.eventType === 'INSERT') {
             const m = payload.new as any;
@@ -188,7 +222,7 @@ const MessageList = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedAccount, refreshTrigger, isUltimateInbox, mailboxView]);
+  }, [selectedAccount, refreshTrigger, isUltimateInbox, mailboxView, provider]);
 
   const loadMoreMessages = async () => {
     if (!hasMore || isLoading || isLoadingMore) return;
@@ -201,6 +235,21 @@ const MessageList = ({
       
       if (!isUltimateInbox && selectedAccount) {
         query = query.eq('account_id', selectedAccount.id);
+      } else if (isUltimateInbox && provider) {
+        // Filter by provider in ultimate inbox mode
+        const { data: accounts } = await supabase
+          .from('email_accounts')
+          .select('id')
+          .eq('provider', provider)
+          .eq('is_active', true);
+        
+        if (accounts && accounts.length > 0) {
+          const accountIds = accounts.map(a => a.id);
+          query = query.in('account_id', accountIds);
+        } else {
+          setIsLoadingMore(false);
+          return;
+        }
       }
 
       // Apply mailbox filter based on account provider
