@@ -212,6 +212,50 @@ export type Database = {
           },
         ]
       }
+      outlook_subscriptions: {
+        Row: {
+          account_id: string | null
+          client_state: string | null
+          created_at: string | null
+          expiration: string
+          id: string
+          is_active: boolean | null
+          resource: string
+          subscription_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          client_state?: string | null
+          created_at?: string | null
+          expiration: string
+          id?: string
+          is_active?: boolean | null
+          resource: string
+          subscription_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          client_state?: string | null
+          created_at?: string | null
+          expiration?: string
+          id?: string
+          is_active?: boolean | null
+          resource?: string
+          subscription_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlook_subscriptions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -310,6 +354,7 @@ export type Database = {
       webhook_queue: {
         Row: {
           account_id: string
+          change_type: string | null
           created_at: string
           email_address: string
           error_message: string | null
@@ -317,11 +362,13 @@ export type Database = {
           id: string
           next_retry_at: string | null
           processed_at: string | null
+          provider: string | null
           retry_count: number
           status: string
         }
         Insert: {
           account_id: string
+          change_type?: string | null
           created_at?: string
           email_address: string
           error_message?: string | null
@@ -329,11 +376,13 @@ export type Database = {
           id?: string
           next_retry_at?: string | null
           processed_at?: string | null
+          provider?: string | null
           retry_count?: number
           status?: string
         }
         Update: {
           account_id?: string
+          change_type?: string | null
           created_at?: string
           email_address?: string
           error_message?: string | null
@@ -341,6 +390,7 @@ export type Database = {
           id?: string
           next_retry_at?: string | null
           processed_at?: string | null
+          provider?: string | null
           retry_count?: number
           status?: string
         }

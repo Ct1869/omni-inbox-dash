@@ -158,7 +158,7 @@ serve(async (req) => {
     while (totalFetched < maxMessages) {
       checkTimeout();
       
-      const pageSize = Math.min(500, maxMessages - totalFetched);
+      const pageSize = Math.min(100, maxMessages - totalFetched); // Reduced from 500 to 100 to prevent WORKER_LIMIT
       let url = `https://graph.microsoft.com/v1.0/me/messages?$top=${pageSize}&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,bodyPreview,body,receivedDateTime,isRead,categories,hasAttachments,conversationId&$orderby=receivedDateTime desc`;
       
       if (nextSkipToken) {

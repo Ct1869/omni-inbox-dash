@@ -9,14 +9,38 @@ verify_jwt = true
 [functions.sync-messages]
 verify_jwt = false
 
+[functions.sync-outlook-messages]
+verify_jwt = false
+
 [functions.send-reply]
 verify_jwt = true
 
 [functions.setup-gmail-watches]
 verify_jwt = true
 
+[functions.setup-outlook-subscriptions]
+verify_jwt = true
+
 [functions.gmail-webhook]
+verify_jwt = false
+
+[functions.outlook-webhook]
 verify_jwt = false
 
 [functions.renew-gmail-watches]
 verify_jwt = true
+
+[functions.renew-outlook-subscriptions]
+verify_jwt = false
+
+[functions.webhook-processor]
+verify_jwt = false
+
+[functions.background-sync]
+verify_jwt = false
+
+[functions.cleanup-stuck-jobs]
+verify_jwt = false
+
+[functions.sync-status]
+verify_jwt = false

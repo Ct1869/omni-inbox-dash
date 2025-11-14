@@ -44,10 +44,11 @@ interface AccountsSidebarProps {
   onConnectOutlook: () => void;
   onRefresh: () => void;
   onCompose: () => void;
+  onSyncAll?: () => void;
   refreshTrigger?: number;
 }
 
-const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onConnectOutlook, onRefresh, onCompose, refreshTrigger }: AccountsSidebarProps) => {
+const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onConnectOutlook, onRefresh, onCompose, onSyncAll, refreshTrigger }: AccountsSidebarProps) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -264,10 +265,10 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                 Outlook Only
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Sync Options</DropdownMenuLabel>
-              <DropdownMenuItem onClick={handleSyncAll} className="cursor-pointer">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Sync All Accounts
+              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleSetupWatches} className="cursor-pointer">
+                <Bell className="h-4 w-4 mr-2" />
+                Setup Push Notifications
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -282,21 +283,31 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
           Compose
         </Button>
         <div className="flex gap-2 mb-2">
-          <Button 
-            variant="outline" 
-            className="flex-1 justify-start gap-2"
-            onClick={handleSyncNow}
-            disabled={!selectedAccount || isSyncing}
-          >
-            <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
-          </Button>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
+                <Button 
+                  variant="outline" 
+                  className="flex-1 justify-start gap-2"
+                  onClick={onSyncAll}
+                  disabled={accounts.length === 0}
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Sync All
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Sync All Accounts</p>
+                <p className="text-xs text-muted-foreground">Sync Gmail and Outlook accounts</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
                   onClick={handleSetupWatches}
                   disabled={isSettingUpWatches || accounts.length === 0}
                   className="shrink-0"
@@ -306,7 +317,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
               </TooltipTrigger>
               <TooltipContent>
                 <p>Setup Push Notifications</p>
-                <p className="text-xs text-muted-foreground">Enable auto-sync for all accounts</p>
+                <p className="text-xs text-muted-foreground">Enable real-time updates</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
