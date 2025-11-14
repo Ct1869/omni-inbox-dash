@@ -159,10 +159,26 @@ const GmailView = () => {
             <div className="w-full h-full flex flex-col">
               <div className="p-4 border-b border-border">
                 <div className="flex gap-2">
-                  <button onClick={() => setMailboxView("inbox")} className={cn("flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors", mailboxView === "inbox" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+                  <button
+                    onClick={() => setMailboxView("inbox")}
+                    className={cn(
+                      "flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors",
+                      mailboxView === "inbox"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                  >
                     Inbox
                   </button>
-                  <button onClick={() => setMailboxView("sent")} className={cn("flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors", mailboxView === "sent" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+                  <button
+                    onClick={() => setMailboxView("sent")}
+                    className={cn(
+                      "flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors",
+                      mailboxView === "sent"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                  >
                     Sent
                   </button>
                 </div>
