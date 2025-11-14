@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Bell
 } from "lucide-react";
+import gmailIcon from "@/assets/gmail-icon.png";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -269,7 +270,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                   className="min-h-[44px] min-w-[44px]"
                   onClick={() => navigate('/dashboard/gmail')}
                 >
-                  <Mail className="h-4 w-4 text-[hsl(4,82%,57%)]" />
+                  <img src={gmailIcon} alt="Gmail" className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Gmail Inbox</TooltipContent>
