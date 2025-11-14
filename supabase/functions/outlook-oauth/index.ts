@@ -19,10 +19,21 @@ serve(async (req) => {
 
     // Get code and state from query parameters
     const url = new URL(req.url);
+    console.log("Received callback URL:", req.url);
+    console.log("Query params:", Object.fromEntries(url.searchParams.entries()));
+    
     const code = url.searchParams.get("code");
+    const error = url.searchParams.get("error");
+    const errorDescription = url.searchParams.get("error_description");
     const state = url.searchParams.get("state");
     
+    if (error) {
+      console.error("OAuth error from Microsoft:", error, errorDescription);
+      throw new Error(`OAuth error: ${error} - ${errorDescription}`);
+    }
+    
     if (!code) {
+      console.error("No code received. All params:", Object.fromEntries(url.searchParams.entries()));
       throw new Error("Authorization code is required");
     }
 
