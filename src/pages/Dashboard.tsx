@@ -16,6 +16,7 @@ export interface Account {
   name: string;
   email: string;
   unreadCount: number;
+  provider?: 'gmail' | 'outlook';
 }
 
 export interface Message {
