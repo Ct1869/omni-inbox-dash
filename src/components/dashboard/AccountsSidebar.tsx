@@ -48,6 +48,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSettingUpWatches, setIsSettingUpWatches] = useState(false);
+  const [accountFilter, setAccountFilter] = useState<'all' | 'gmail' | 'outlook'>('all');
   const userEmail = localStorage.getItem("userEmail") || "user@email.com";
   const userName = userEmail.split("@")[0];
   
@@ -114,7 +115,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
         setIsLoading(true);
         const { data, error } = await supabase
           .from('email_accounts')
-          .select('id, name, email, unread_count')
+          .select('id, name, email, unread_count, provider')
           .order('created_at', { ascending: false });
         if (error) throw error;
         const mapped: Account[] = (data || []).map((a: any) => ({
@@ -122,6 +123,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
           name: a.name || a.email,
           email: a.email,
           unreadCount: a.unread_count ?? 0,
+          provider: a.provider,
         }));
         setAccounts(mapped);
       } catch (err) {
@@ -134,6 +136,11 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
 
     fetchAccounts();
   }, [refreshTrigger]);
+
+  const filteredAccounts = accounts.filter(account => {
+    if (accountFilter === 'all') return true;
+    return account.provider === accountFilter;
+  });
 
   const getInitials = (name: string) => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
@@ -176,9 +183,39 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => setAccountFilter('all')} 
+                className="cursor-pointer"
+              >
+                {accountFilter === 'all' && <Check className="h-4 w-4 mr-2" />}
+                {accountFilter !== 'all' && <span className="w-4 mr-2" />}
+                All Accounts
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setAccountFilter('gmail')} 
+                className="cursor-pointer"
+              >
+                {accountFilter === 'gmail' && <Check className="h-4 w-4 mr-2" />}
+                {accountFilter !== 'gmail' && <span className="w-4 mr-2" />}
+                Gmail Only
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setAccountFilter('outlook')} 
+                className="cursor-pointer"
+              >
+                {accountFilter === 'outlook' && <Check className="h-4 w-4 mr-2" />}
+                {accountFilter !== 'outlook' && <span className="w-4 mr-2" />}
+                Outlook Only
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <Button 
           variant="default" 
@@ -256,11 +293,12 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                   <div key={i} className="h-12 bg-muted/20 animate-pulse rounded-md mx-1" />
                 ))
               ) : (
-                accounts.map((account) => {
+                filteredAccounts.map((account) => {
                   const syncStatus = syncStatuses.get(account.id);
                   const isAccountSyncing = syncStatus?.status === "running";
                   const isSyncCompleted = syncStatus?.status === "completed";
                   const isSyncFailed = syncStatus?.status === "failed";
+                  const isGmail = account.provider === 'gmail';
 
                   return (
                     <button
@@ -274,7 +312,10 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                       )}
                     >
                       <Avatar className="h-8 w-8 flex-shrink-0">
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                        <AvatarFallback className={cn(
+                          "text-xs",
+                          isGmail ? "bg-[hsl(4,82%,57%)]/10 text-[hsl(4,82%,57%)]" : "bg-primary/10 text-primary"
+                        )}>
                           {getInitials(account.name)}
                         </AvatarFallback>
                       </Avatar>
@@ -316,7 +357,15 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                         )}
 
                         {account.unreadCount > 0 && (
-                          <Badge variant="secondary" className="bg-primary text-primary-foreground h-5 px-2 text-xs min-w-[24px] justify-center flex-shrink-0">
+                          <Badge 
+                            variant="secondary" 
+                            className={cn(
+                              "h-5 px-2 text-xs min-w-[24px] justify-center flex-shrink-0",
+                              isGmail 
+                                ? "bg-[hsl(4,82%,57%)] text-white" 
+                                : "bg-primary text-primary-foreground"
+                            )}
+                          >
                             {account.unreadCount}
                           </Badge>
                         )}
