@@ -133,6 +133,44 @@ export type Database = {
         }
         Relationships: []
       }
+      gmail_watches: {
+        Row: {
+          account_id: string | null
+          created_at: string | null
+          expiration: string
+          history_id: string
+          id: string
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string | null
+          expiration: string
+          history_id: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string | null
+          expiration?: string
+          history_id?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gmail_watches_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       oauth_tokens: {
         Row: {
           access_token: string
@@ -211,6 +249,7 @@ export type Database = {
           messages_synced: number | null
           started_at: string | null
           status: Database["public"]["Enums"]["sync_status"]
+          timeout_at: string | null
           updated_at: string
         }
         Insert: {
@@ -222,6 +261,7 @@ export type Database = {
           messages_synced?: number | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["sync_status"]
+          timeout_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -233,6 +273,7 @@ export type Database = {
           messages_synced?: number | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["sync_status"]
+          timeout_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -266,11 +307,59 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_queue: {
+        Row: {
+          account_id: string
+          created_at: string
+          email_address: string
+          error_message: string | null
+          history_id: string
+          id: string
+          next_retry_at: string | null
+          processed_at: string | null
+          retry_count: number
+          status: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          email_address: string
+          error_message?: string | null
+          history_id: string
+          id?: string
+          next_retry_at?: string | null
+          processed_at?: string | null
+          retry_count?: number
+          status?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          email_address?: string
+          error_message?: string | null
+          history_id?: string
+          id?: string
+          next_retry_at?: string | null
+          processed_at?: string | null
+          retry_count?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_queue_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      cleanup_stuck_sync_jobs: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -280,7 +369,7 @@ export type Database = {
       }
     }
     Enums: {
-      account_provider: "gmail"
+      account_provider: "gmail" | "outlook"
       app_role: "viewer" | "responder" | "admin"
       sync_status: "pending" | "processing" | "completed" | "failed"
     }
@@ -410,7 +499,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      account_provider: ["gmail"],
+      account_provider: ["gmail", "outlook"],
       app_role: ["viewer", "responder", "admin"],
       sync_status: ["pending", "processing", "completed", "failed"],
     },
