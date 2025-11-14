@@ -19,7 +19,7 @@ import {
   RefreshCw,
   Bell
 } from "lucide-react";
-import gmailIcon from "@/assets/gmail-icon.png";
+import gmailIcon from "@/assets/gmail-icon.svg";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
