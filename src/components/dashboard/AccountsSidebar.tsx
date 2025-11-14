@@ -61,12 +61,24 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
   const syncStatuses = useSyncStatus(accounts.map(a => a.id));
 
   const handleSyncNow = async () => {
-    if (!selectedAccount || isSyncing) return;
+    if (isSyncing) return;
     setIsSyncing(true);
-    toast.loading("Syncing messages...", { id: "sync" });
+    
+    // If no account selected (Ultimate Inbox), sync all accounts
+    if (!selectedAccount) {
+      if (onSyncAll) {
+        onSyncAll();
+      }
+      setIsSyncing(false);
+      return;
+    }
+    
+    // Sync individual account
+    toast.loading(`Syncing ${selectedAccount.email}...`, { id: "sync" });
     try {
-      const { error } = await supabase.functions.invoke("sync-messages", {
-        body: { accountId: selectedAccount.id },
+      const functionName = selectedAccount.provider === 'outlook' ? 'sync-outlook-messages' : 'sync-messages';
+      const { error } = await supabase.functions.invoke(functionName, {
+        body: { accountId: selectedAccount.id, maxMessages: 100 },
       });
       if (error) throw error;
       toast.success("Messages synced successfully", { id: "sync" });
@@ -283,25 +295,15 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
           Compose
         </Button>
         <div className="flex gap-2 mb-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="flex-1 justify-start gap-2"
-                  onClick={onSyncAll}
-                  disabled={accounts.length === 0}
-                >
-                  <RefreshCcw className="h-4 w-4" />
-                  Sync All
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Sync All Accounts</p>
-                <p className="text-xs text-muted-foreground">Sync Gmail and Outlook accounts</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Button 
+            variant="outline" 
+            className="flex-1 justify-start gap-2"
+            onClick={handleSyncNow}
+            disabled={isSyncing || accounts.length === 0}
+          >
+            <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            {selectedAccount ? 'Sync Now' : 'Sync All'}
+          </Button>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -312,12 +314,12 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                   disabled={isSettingUpWatches || accounts.length === 0}
                   className="shrink-0"
                 >
-                  <RefreshCcw className={cn("h-4 w-4", isSettingUpWatches && "animate-spin")} />
+                  <Bell className={cn("h-4 w-4", isSettingUpWatches && "animate-spin")} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
                 <p>Setup Push Notifications</p>
-                <p className="text-xs text-muted-foreground">Enable real-time updates</p>
+                <p className="text-xs text-muted-foreground">Enable real-time email updates</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

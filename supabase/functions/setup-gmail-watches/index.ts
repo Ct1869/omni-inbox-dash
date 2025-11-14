@@ -58,11 +58,12 @@ serve(async (req) => {
       throw new Error("GOOGLE_PROJECT_ID not configured");
     }
 
-    // Fetch all email accounts for this user
+    // Fetch all GMAIL accounts for this user
     const { data: accounts, error: accountsError } = await supabase
       .from("email_accounts")
       .select("id, email, name")
       .eq("user_id", user.id)
+      .eq("provider", "gmail")
       .eq("is_active", true);
 
     if (accountsError) throw accountsError;
