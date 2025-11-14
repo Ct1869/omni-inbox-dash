@@ -178,6 +178,40 @@ const Dashboard = () => {
     window.location.href = authUrl;
   };
 
+  const handleSyncNow = async () => {
+    try {
+      const { data: allAccounts } = await supabase
+        .from('email_accounts')
+        .select('id, provider')
+        .eq('is_active', true);
+
+      if (!allAccounts || allAccounts.length === 0) {
+        toast.error('No accounts to sync');
+        return;
+      }
+
+      toast.info(`Syncing ${allAccounts.length} accounts...`);
+
+      for (const account of allAccounts) {
+        const functionName = account.provider === 'outlook' ? 'sync-outlook-messages' : 'sync-messages';
+        
+        const { error } = await supabase.functions.invoke(functionName, {
+          body: { accountId: account.id, maxMessages: 100 },
+        });
+
+        if (error) {
+          console.error(`Error syncing account ${account.id}:`, error);
+        }
+      }
+
+      toast.success('Sync initiated for all accounts');
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error('Sync all error:', error);
+      toast.error('Failed to sync accounts');
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/auth");
@@ -196,6 +230,7 @@ const Dashboard = () => {
           onConnectGmail={initiateGmailOAuth}
           onConnectOutlook={initiateOutlookOAuth}
           onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+          onSyncAll={handleSyncNow}
           onCompose={() => {
             if (selectedAccount) {
               setIsComposeOpen(true);

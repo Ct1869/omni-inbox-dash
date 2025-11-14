@@ -11,6 +11,8 @@ interface WebhookQueueItem {
   history_id: string;
   email_address: string;
   retry_count: number;
+  provider?: string;
+  change_type?: string;
 }
 
 Deno.serve(async (req) => {
@@ -61,18 +63,31 @@ Deno.serve(async (req) => {
           .update({ status: 'processing' })
           .eq('id', item.id);
 
-        console.log(`Processing webhook for ${item.email_address}, history_id: ${item.history_id}`);
+        console.log(`Processing ${item.provider || 'gmail'} webhook for ${item.email_address}, history_id: ${item.history_id}`);
 
-        // Invoke gmail-webhook function with the webhook data
-        const { error: webhookError } = await supabase.functions.invoke('gmail-webhook', {
-          body: {
-            message: {
-              data: btoa(JSON.stringify({
-                emailAddress: item.email_address,
-                historyId: item.history_id,
-              })),
-            },
-          },
+        // Route to appropriate webhook handler based on provider
+        const provider = item.provider || 'gmail';
+        const functionName = provider === 'outlook' ? 'outlook-webhook' : 'gmail-webhook';
+        
+        const webhookPayload = provider === 'outlook' 
+          ? {
+              value: [{
+                subscriptionId: item.history_id,
+                changeType: item.change_type || 'created,updated',
+                resourceData: { id: item.history_id }
+              }]
+            }
+          : {
+              message: {
+                data: btoa(JSON.stringify({
+                  emailAddress: item.email_address,
+                  historyId: item.history_id,
+                })),
+              },
+            };
+
+        const { error: webhookError } = await supabase.functions.invoke(functionName, {
+          body: webhookPayload,
         });
 
         if (webhookError) {

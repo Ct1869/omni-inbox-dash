@@ -228,7 +228,7 @@ serve(async (req) => {
     while (totalFetched < maxMessages) {
       checkTimeout(); // Check if we've exceeded timeout
       
-      const pageSize = Math.min(500, maxMessages - totalFetched);
+      const pageSize = Math.min(100, maxMessages - totalFetched); // Reduced from 500 to 100 to prevent WORKER_LIMIT
       let url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}`;
       
       if (nextPageToken) {
