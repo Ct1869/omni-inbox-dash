@@ -151,7 +151,7 @@ const Dashboard = () => {
   }, []);
 
   const initiateOutlookOAuth = () => {
-    const clientId = "491f8684-fa51-4089-87d0-c855fae0f88f";
+    const clientId = "5404f8de-9670-445c-a20c-d68ca4d02c2c";
     const redirectUri = "https://vntkvhmpnvnqxdprgvjk.supabase.co/functions/v1/outlook-oauth";
     const scope = "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
     
