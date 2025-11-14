@@ -127,6 +127,7 @@ const GmailInbox = () => {
         onCompose={() => setIsComposeOpen(true)}
         onSyncAll={handleSyncAll}
         refreshTrigger={refreshTrigger}
+        provider="gmail"
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
