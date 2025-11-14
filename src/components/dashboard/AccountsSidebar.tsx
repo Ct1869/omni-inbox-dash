@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -49,6 +50,7 @@ interface AccountsSidebarProps {
 }
 
 const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onConnectOutlook, onRefresh, onCompose, onSyncAll, refreshTrigger }: AccountsSidebarProps) => {
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -335,7 +337,10 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
           
           {/* Ultimate Inbox - All Accounts */}
           <button
-            onClick={() => onSelectAccount(null)}
+            onClick={() => {
+              navigate('/dashboard');
+              onSelectAccount(null);
+            }}
             className={cn(
               "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
               !selectedAccount
@@ -375,7 +380,14 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                       className="flex items-center gap-1 group"
                     >
                       <button
-                        onClick={() => onSelectAccount(account)}
+                        onClick={() => {
+                          if (account.provider === 'gmail') {
+                            navigate(`/dashboard/gmail/${account.id}`);
+                          } else if (account.provider === 'outlook') {
+                            navigate(`/dashboard/outlook/${account.id}`);
+                          }
+                          onSelectAccount(account);
+                        }}
                         className={cn(
                           "flex-1 flex items-center gap-2 px-2 py-2 rounded-md transition-colors",
                           selectedAccount?.id === account.id
