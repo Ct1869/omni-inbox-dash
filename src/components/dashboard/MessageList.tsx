@@ -84,11 +84,24 @@ const MessageList = ({
           return;
         }
 
-        // Filter by mailbox view
-        if (mailboxView === "sent") {
-          query = query.contains("labels", ["SENT"]);
+        // Apply mailbox filter based on account provider
+        if (selectedAccount) {
+          if (selectedAccount.provider === 'gmail') {
+            // Gmail uses labels for mailbox filtering
+            query = mailboxView === 'sent'
+              ? query.contains('labels', ['SENT'])
+              : query.contains('labels', ['INBOX']);
+          } else if (selectedAccount.provider === 'outlook') {
+            // Outlook messages don't have Gmail-style labels; approximate using sender_email
+            if (mailboxView === 'sent') {
+              query = query.eq('sender_email', selectedAccount.email);
+            } else {
+              query = query.neq('sender_email', selectedAccount.email);
+            }
+          }
         } else {
-          query = query.contains("labels", ["INBOX"]);
+          // Ultimate Inbox (no specific account): don't restrict by labels so Outlook messages appear
+          // Optional: could OR Gmail inbox labels with Outlook empty labels, but we keep it simple and unfiltered here
         }
         
         const { data, error } = await query
@@ -190,11 +203,21 @@ const MessageList = ({
         query = query.eq('account_id', selectedAccount.id);
       }
 
-      // Filter by mailbox view
-      if (mailboxView === "sent") {
-        query = query.contains("labels", ["SENT"]);
+      // Apply mailbox filter based on account provider
+      if (selectedAccount) {
+        if (selectedAccount.provider === 'gmail') {
+          query = mailboxView === 'sent'
+            ? query.contains('labels', ['SENT'])
+            : query.contains('labels', ['INBOX']);
+        } else if (selectedAccount.provider === 'outlook') {
+          if (mailboxView === 'sent') {
+            query = query.eq('sender_email', selectedAccount.email);
+          } else {
+            query = query.neq('sender_email', selectedAccount.email);
+          }
+        }
       } else {
-        query = query.contains("labels", ["INBOX"]);
+        // Ultimate Inbox: leave unfiltered to include Outlook messages
       }
       
       const { data, error } = await query
