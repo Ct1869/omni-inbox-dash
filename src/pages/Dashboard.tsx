@@ -66,8 +66,14 @@ const Dashboard = () => {
   // Handle OAuth callback
   useEffect(() => {
     const code = searchParams.get("code");
+    const outlookConnected = searchParams.get("outlook_connected");
+    
     if (code) {
       handleOAuthCallback(code);
+      setSearchParams({});
+    } else if (outlookConnected) {
+      toast.success(`Outlook account connected: ${outlookConnected}`);
+      setRefreshTrigger(prev => prev + 1);
       setSearchParams({});
     }
   }, [searchParams, setSearchParams]);
@@ -122,8 +128,8 @@ const Dashboard = () => {
   };
 
   const initiateOutlookOAuth = () => {
-    const clientId = "d35fbe27-6666-4800-9d34-796710f0acfd";
-    const redirectUri = `${window.location.origin}/dashboard`;
+    const clientId = "c9776c9c-382e-4567-8b93-2e35fe448e89";
+    const redirectUri = "https://vntkvhmpnvnqxdprgvjk.supabase.co/functions/v1/outlook-oauth";
     const scope = "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
     
     const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${new URLSearchParams({
@@ -132,7 +138,7 @@ const Dashboard = () => {
       response_type: "code",
       scope,
       response_mode: "query",
-      state: "outlook_oauth",
+      state: `outlook_oauth_${window.location.origin}`,
     })}`;
 
     window.location.href = authUrl;

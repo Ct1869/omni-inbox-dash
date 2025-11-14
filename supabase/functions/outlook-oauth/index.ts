@@ -17,15 +17,18 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { code, redirectUri } = await req.json();
+    // Get code and state from query parameters
+    const url = new URL(req.url);
+    const code = url.searchParams.get("code");
+    const state = url.searchParams.get("state");
     
     if (!code) {
       throw new Error("Authorization code is required");
     }
 
-    if (!redirectUri) {
-      throw new Error("Redirect URI is required");
-    }
+    // Extract the origin from state parameter
+    const frontendOrigin = state?.replace("outlook_oauth_", "") || "";
+    const redirectUri = "https://vntkvhmpnvnqxdprgvjk.supabase.co/functions/v1/outlook-oauth";
 
     const MICROSOFT_CLIENT_ID = Deno.env.get("MICROSOFT_CLIENT_ID");
     const MICROSOFT_CLIENT_SECRET = Deno.env.get("MICROSOFT_CLIENT_SECRET");
@@ -69,13 +72,17 @@ serve(async (req) => {
     const userInfo = await userInfoResponse.json();
     console.log("User info received:", userInfo.mail || userInfo.userPrincipalName);
 
-    // Get current user from auth header
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
-    const { data: { user } } = await supabase.auth.getUser(token || "");
+    // Get current user from cookie
+    const cookies = req.headers.get("cookie") || "";
+    const accessToken = cookies.split(";")
+      .find(c => c.trim().startsWith("sb-access-token="))
+      ?.split("=")[1];
+
+    const { data: { user } } = await supabase.auth.getUser(accessToken || "");
 
     if (!user) {
-      throw new Error("Unauthorized");
+      console.error("No authenticated user found");
+      throw new Error("Unauthorized - Please log in first");
     }
 
     const userEmail = userInfo.mail || userInfo.userPrincipalName;
@@ -159,21 +166,16 @@ serve(async (req) => {
 
     console.log("Outlook OAuth completed successfully");
 
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        account: {
-          id: accountId,
-          email: userEmail,
-          name: userName,
-          provider: "outlook"
-        }
-      }),
-      { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    );
+    // Redirect back to dashboard with success message
+    const dashboardUrl = `${frontendOrigin}/dashboard?outlook_connected=${encodeURIComponent(userEmail)}`;
+    
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...corsHeaders,
+        "Location": dashboardUrl,
+      },
+    });
   } catch (error) {
     console.error("Outlook OAuth error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
