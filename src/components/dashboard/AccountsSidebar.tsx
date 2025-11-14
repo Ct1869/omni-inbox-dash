@@ -260,47 +260,36 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Filter Accounts</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => setAccountFilter('all')} 
-                className="cursor-pointer"
-              >
-                {accountFilter === 'all' && <Check className="h-4 w-4 mr-2" />}
-                {accountFilter !== 'all' && <span className="w-4 mr-2" />}
-                All Accounts
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => setAccountFilter('gmail')} 
-                className="cursor-pointer"
-              >
-                {accountFilter === 'gmail' && <Check className="h-4 w-4 mr-2" />}
-                {accountFilter !== 'gmail' && <span className="w-4 mr-2" />}
-                Gmail Only
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => setAccountFilter('outlook')} 
-                className="cursor-pointer"
-              >
-                {accountFilter === 'outlook' && <Check className="h-4 w-4 mr-2" />}
-                {accountFilter !== 'outlook' && <span className="w-4 mr-2" />}
-                Outlook Only
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-              <DropdownMenuItem onClick={handleSetupWatches} className="cursor-pointer">
-                <Bell className="h-4 w-4 mr-2" />
-                Setup Push Notifications
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="min-h-[44px] min-w-[44px]"
+                  onClick={() => navigate('/dashboard/gmail')}
+                >
+                  <Mail className="h-4 w-4 text-[hsl(4,82%,57%)]" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Gmail Inbox</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="min-h-[44px] min-w-[44px]"
+                  onClick={() => navigate('/dashboard/outlook')}
+                >
+                  <Mail className="h-4 w-4 text-primary" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Outlook Inbox</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <Button 
           variant="default" 
