@@ -122,7 +122,18 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Read request body once at the start and store values for use throughout the function
+  let accountId: string | undefined;
+  let pageToken: string | null = null;
+  let maxMessages = 1000;
+  
   try {
+    // Parse body once
+    const body = await req.json();
+    accountId = body.accountId;
+    pageToken = body.pageToken || null;
+    maxMessages = body.maxMessages || 1000;
+    
     // Set timeout for this function (5 minutes)
     const timeoutMs = 5 * 60 * 1000;
     const startTime = Date.now();
@@ -137,8 +148,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
-
-    const { accountId, pageToken = null, maxMessages = 1000 } = await req.json();
 
     // Create sync job with timeout
     const { data: syncJob } = await supabase
@@ -171,6 +180,21 @@ serve(async (req) => {
           .eq("id", syncJob.id);
       }
       throw new Error("Account or tokens not found");
+    }
+
+    // Check if this is a Gmail account
+    if (account.provider !== 'gmail') {
+      if (syncJob) {
+        await supabase
+          .from("sync_jobs")
+          .update({
+            status: "failed",
+            completed_at: new Date().toISOString(),
+            error_message: `This sync function only supports Gmail accounts. Account provider is: ${account.provider}`,
+          })
+          .eq("id", syncJob.id);
+      }
+      throw new Error(`This sync function only supports Gmail accounts. Account provider is: ${account.provider}`);
     }
 
     const tokens = account.oauth_tokens;
@@ -403,36 +427,36 @@ serve(async (req) => {
     
     const errorMessage = error instanceof Error ? error.message : String(error);
     
-    // Try to update sync job if possible
-    try {
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-      );
-      
-      const { accountId } = await req.json();
-      
-      // Find the most recent processing job for this account
-      const { data: jobs } = await supabase
-        .from("sync_jobs")
-        .select("id")
-        .eq("account_id", accountId)
-        .eq("status", "processing")
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      if (jobs && jobs.length > 0) {
-        await supabase
+    // Try to update sync job if possible (use accountId from outer scope)
+    if (accountId) {
+      try {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+        );
+        
+        // Find the most recent processing job for this account
+        const { data: jobs } = await supabase
           .from("sync_jobs")
-          .update({
-            status: "failed",
-            completed_at: new Date().toISOString(),
-            error_message: errorMessage,
-          })
-          .eq("id", jobs[0].id);
+          .select("id")
+          .eq("account_id", accountId)
+          .eq("status", "processing")
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (jobs && jobs.length > 0) {
+          await supabase
+            .from("sync_jobs")
+            .update({
+              status: "failed",
+              completed_at: new Date().toISOString(),
+              error_message: errorMessage,
+            })
+            .eq("id", jobs[0].id);
+        }
+      } catch (updateError) {
+        console.error("Failed to update sync job:", updateError);
       }
-    } catch (updateError) {
-      console.error("Failed to update sync job:", updateError);
     }
 
     return new Response(
