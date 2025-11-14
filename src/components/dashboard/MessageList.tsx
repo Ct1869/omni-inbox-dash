@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import debounce from "lodash.debounce";
+import throttle from "lodash.throttle";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +59,7 @@ const MessageList = ({
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const MESSAGES_PER_PAGE = 50;
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   
@@ -225,17 +228,21 @@ const MessageList = ({
     }
   };
 
-  const handleScroll = () => {
-    const viewport = scrollViewportRef.current;
-    if (!viewport) return;
-    
-    const scrollPercentage = (viewport.scrollTop + viewport.clientHeight) / viewport.scrollHeight;
-    
-    // Load more when scrolled to 80% of the content
-    if (scrollPercentage > 0.8 && hasMore && !isLoadingMore && !isLoading) {
-      loadMoreMessages();
-    }
-  };
+  // Throttled scroll handler to improve performance
+  const handleScroll = useCallback(
+    throttle(() => {
+      const viewport = scrollViewportRef.current;
+      if (!viewport) return;
+      
+      const scrollPercentage = (viewport.scrollTop + viewport.clientHeight) / viewport.scrollHeight;
+      
+      // Load more when scrolled to 80% of the content
+      if (scrollPercentage > 0.8 && hasMore && !isLoadingMore && !isLoading) {
+        loadMoreMessages();
+      }
+    }, 200),
+    [hasMore, isLoadingMore, isLoading]
+  );
 
   // Attach scroll handler to viewport
   useEffect(() => {
@@ -246,18 +253,21 @@ const MessageList = ({
     return () => viewport.removeEventListener('scroll', handleScroll);
   }, [hasMore, isLoadingMore, isLoading, offset]);
 
-  const filteredMessages = messages.filter((msg) => {
-    const query = (searchQuery || localSearch).toLowerCase();
-    if (query && !msg.subject.toLowerCase().includes(query) &&
-        !msg.from.name.toLowerCase().includes(query) &&
-        !msg.from.email.toLowerCase().includes(query)) {
-      return false;
-    }
-    if (filterUnread && !msg.isUnread) return false;
-    if (filterFlagged && !msg.isFlagged) return false;
-    
-    return true;
-  });
+  // Memoize filtered messages to prevent unnecessary recalculations
+  const filteredMessages = useMemo(() => {
+    return messages.filter((msg) => {
+      const query = (searchQuery || localSearch).toLowerCase();
+      if (query && !msg.subject.toLowerCase().includes(query) &&
+          !msg.from.name.toLowerCase().includes(query) &&
+          !msg.from.email.toLowerCase().includes(query)) {
+        return false;
+      }
+      if (filterUnread && !msg.isUnread) return false;
+      if (filterFlagged && !msg.isFlagged) return false;
+      
+      return true;
+    });
+  }, [messages, searchQuery, localSearch, filterUnread, filterFlagged]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -275,7 +285,7 @@ const MessageList = ({
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  const handleToggleSelect = (messageId: string) => {
+  const handleToggleSelect = useCallback((messageId: string) => {
     setSelectedIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(messageId)) {
@@ -285,9 +295,9 @@ const MessageList = ({
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const handleMarkSelectedAsRead = async () => {
+  const handleMarkSelectedAsRead = useCallback(async () => {
     if (selectedIds.size === 0) return;
     setIsMarkingRead(true);
     
@@ -320,11 +330,10 @@ const MessageList = ({
     } finally {
       setIsMarkingRead(false);
     }
-  };
+  }, [selectedIds, messages]);
 
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = useCallback(async () => {
     if (selectedIds.size === 0) return;
     setIsDeleting(true);
     
@@ -358,7 +367,7 @@ const MessageList = ({
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [selectedIds, messages]);
 
   if (!selectedAccount && !isUltimateInbox) {
     return (
