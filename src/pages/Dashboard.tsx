@@ -149,9 +149,19 @@ const Dashboard = () => {
   }, []);
 
   const handleSelectAccount = useCallback((account: Account | null) => {
-    setSelectedAccount(account);
-    setSelectedMessage(null);
-  }, []);
+    if (account) {
+      // Navigate to provider-specific view
+      if (account.provider === 'gmail') {
+        navigate(`/dashboard/gmail/${account.id}`);
+      } else if (account.provider === 'outlook') {
+        navigate(`/dashboard/outlook/${account.id}`);
+      }
+    } else {
+      // Stay on Ultimate Inbox (current page)
+      setSelectedAccount(null);
+      setSelectedMessage(null);
+    }
+  }, [navigate]);
 
   const handleSelectMessage = useCallback((message: Message | null) => {
     setSelectedMessage(message);
