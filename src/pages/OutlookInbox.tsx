@@ -10,6 +10,9 @@ import { toast } from "sonner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import type { Account, Message } from "@/pages/Dashboard";
+import { Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const OutlookInbox = () => {
   const navigate = useNavigate();
@@ -140,6 +143,36 @@ const OutlookInbox = () => {
           onFilterFlaggedChange={() => {}}
           onLogout={handleLogout}
         />
+
+        {/* Provider Toggle */}
+        <div className="border-b bg-muted/30 px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/dashboard/gmail')}
+              className="gap-2"
+            >
+              <Mail className="h-4 w-4" />
+              Gmail
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/dashboard/outlook')}
+              className={cn(
+                "gap-2 font-medium",
+                "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
+            >
+              <Mail className="h-4 w-4" />
+              Outlook
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {outlookAccounts.length} account{outlookAccounts.length !== 1 ? 's' : ''}
+          </div>
+        </div>
 
         <div className="flex-1 flex overflow-hidden">
           <div className={selectedMessage ? "hidden lg:block lg:w-1/2" : "flex-1"}>
