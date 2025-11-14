@@ -13,12 +13,19 @@ import {
   Plus,
   MoreHorizontal,
   RefreshCcw,
-  Check
+  Check,
+  Mail
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Account } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -30,11 +37,12 @@ interface AccountsSidebarProps {
   selectedAccount: Account | null;
   onSelectAccount: (account: Account | null) => void;
   onConnectGmail: () => void;
+  onConnectOutlook: () => void;
   onRefresh: () => void;
   onCompose: () => void;
 }
 
-const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onRefresh, onCompose }: AccountsSidebarProps) => {
+const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onConnectOutlook, onRefresh, onCompose }: AccountsSidebarProps) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -145,15 +153,28 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onR
             <div className="font-medium text-sm truncate">{userName}</div>
             <div className="text-xs text-muted-foreground truncate">{userEmail}</div>
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-6 w-6"
-            onClick={onConnectGmail}
-            title="Connect Gmail account"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6"
+                title="Add email account"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onConnectGmail} className="cursor-pointer">
+                <Mail className="h-4 w-4 mr-2" />
+                Connect Gmail
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onConnectOutlook} className="cursor-pointer">
+                <Mail className="h-4 w-4 mr-2" />
+                Connect Outlook
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="ghost" size="icon" className="h-6 w-6">
             <MoreHorizontal className="h-4 w-4" />
           </Button>

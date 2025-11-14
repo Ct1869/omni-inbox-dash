@@ -82,16 +82,24 @@ const Dashboard = () => {
 
       const redirectUri = `${window.location.origin}/dashboard`;
       
-      const { data, error } = await supabase.functions.invoke("gmail-oauth", {
+      // Check if this is an Outlook callback (Microsoft adds state parameter)
+      const state = searchParams.get("state");
+      const isOutlook = state?.includes("outlook");
+      
+      const functionName = isOutlook ? "outlook-oauth" : "gmail-oauth";
+      const provider = isOutlook ? "Outlook" : "Gmail";
+      
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: { code, redirectUri },
       });
 
       if (error) throw error;
 
-      toast.success(`Gmail account connected: ${data.account.email}`);
+      toast.success(`${provider} account connected: ${data.account.email}`);
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error("OAuth error:", error);
-      toast.error("Failed to connect Gmail account");
+      toast.error("Failed to connect email account");
     }
   };
 
@@ -108,6 +116,23 @@ const Dashboard = () => {
       scope,
       access_type: "offline",
       prompt: "consent",
+    })}`;
+
+    window.location.href = authUrl;
+  };
+
+  const initiateOutlookOAuth = () => {
+    const clientId = "d35fbe27-6666-4800-9d34-796710f0acfd";
+    const redirectUri = `${window.location.origin}/dashboard`;
+    const scope = "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
+    
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope,
+      response_mode: "query",
+      state: "outlook_oauth",
     })}`;
 
     window.location.href = authUrl;
@@ -132,6 +157,7 @@ const Dashboard = () => {
             setSelectedMessage(null);
           }}
           onConnectGmail={initiateGmailOAuth}
+          onConnectOutlook={initiateOutlookOAuth}
           onRefresh={() => setRefreshTrigger(prev => prev + 1)}
           onCompose={() => {
             if (selectedAccount) {
