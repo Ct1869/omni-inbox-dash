@@ -152,10 +152,11 @@ const Dashboard = () => {
 
   const initiateOutlookOAuth = () => {
     const clientId = "5404f8de-9670-445c-a20c-d68ca4d02c2c";
+    const tenantId = "1d200ab1-05a5-46bc-8814-c94390f5f7ba";
     const redirectUri = `${window.location.origin}/dashboard`;
     const scope = "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
     
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${new URLSearchParams({
+    const authUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?${new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: "code",
