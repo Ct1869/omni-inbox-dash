@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AccountsSidebar from "@/components/dashboard/AccountsSidebar";
 import MessageList from "@/components/dashboard/MessageList";
@@ -109,8 +109,8 @@ const Dashboard = () => {
     }
   };
 
-  const initiateGmailOAuth = () => {
-    const clientId = "392918695055-nord9i04nlslrmeea8r8h6c9ghspi48l.apps.googleusercontent.com";
+  const initiateGmailOAuth = useCallback(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "392918695055-nord9i04nlslrmeea8r8h6c9ghspi48l.apps.googleusercontent.com";
 
     const redirectUri = `${window.location.origin}/dashboard`;
     const scope = "https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid";
@@ -125,7 +125,7 @@ const Dashboard = () => {
     })}`;
 
     window.location.href = authUrl;
-  };
+  }, []);
 
   const initiateOutlookOAuth = () => {
     const clientId = "491f8684-fa51-4089-87d0-c855fae0f88f";

@@ -57,7 +57,7 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail }: ComposeD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Message</DialogTitle>
           <p className="text-sm text-muted-foreground">From: {accountEmail}</p>
@@ -89,7 +89,7 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail }: ComposeD
               placeholder="Type your message here..."
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              className="min-h-48"
+              className="min-h-48 md:min-h-64"
             />
           </div>
           <div className="flex justify-end gap-2">
