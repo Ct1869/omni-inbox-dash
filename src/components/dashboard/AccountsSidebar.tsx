@@ -20,6 +20,7 @@ import {
   Bell
 } from "lucide-react";
 import gmailIcon from "@/assets/gmail-icon.svg";
+import outlookIcon from "@/assets/outlook-icon.svg";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -285,7 +286,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                   className="min-h-[44px] min-w-[44px]"
                   onClick={() => navigate('/dashboard/outlook')}
                 >
-                  <Mail className="h-4 w-4 text-primary" />
+                  <img src={outlookIcon} alt="Outlook" className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Outlook Inbox</TooltipContent>
