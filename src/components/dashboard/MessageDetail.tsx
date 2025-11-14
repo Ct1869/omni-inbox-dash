@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { Message } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
+import EmailViewer from "./EmailViewer";
 
 interface MessageDetailProps {
   message: Message | null;
@@ -224,20 +225,8 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
         <div className="p-4 md:p-6 w-full max-w-5xl mx-auto">
           {loading ? (
             <div className="text-sm text-muted-foreground">Loading message…</div>
-          ) : bodyHtml ? (
-            <article 
-              className="prose prose-sm max-w-none dark:prose-invert email-body" 
-              style={{ 
-                color: 'inherit',
-                wordBreak: 'break-word',
-                overflowWrap: 'break-word'
-              }}
-              dangerouslySetInnerHTML={{ __html: bodyHtml }} 
-            />
-          ) : bodyText ? (
-            <pre className="whitespace-pre-wrap text-sm text-foreground font-sans break-words">{bodyText}</pre>
           ) : (
-            <div className="text-sm text-muted-foreground">No content available.</div>
+            <EmailViewer htmlContent={bodyHtml} textContent={bodyText} />
           )}
 
           {/* Reply Section - Responsive */}
