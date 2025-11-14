@@ -152,6 +152,7 @@ const OutlookView = () => {
         onCompose={() => setIsComposeOpen(true)}
         onSyncAll={handleSyncNow}
         refreshTrigger={refreshTrigger}
+        provider="outlook"
       />
       
       <div className="flex flex-1 flex-col overflow-hidden">
