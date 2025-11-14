@@ -203,19 +203,37 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
       // Auto-resize iframe to content height
       const resizeIframe = () => {
         try {
+          // Force a reflow to ensure content is laid out
+          iframeDoc.body.offsetHeight;
+          
           const body = iframeDoc.body;
           const html = iframeDoc.documentElement;
-          const height = Math.max(
+          
+          // Get the actual scrollable content height
+          const contentHeight = Math.max(
             body.scrollHeight,
             body.offsetHeight,
             html.clientHeight,
             html.scrollHeight,
             html.offsetHeight
           );
-          iframe.style.height = `${height + 32}px`;
+          
+          // Ensure minimum height and add padding
+          const finalHeight = Math.max(contentHeight, 100) + 32;
+          
+          console.log("Resizing iframe:", {
+            bodyScrollHeight: body.scrollHeight,
+            bodyOffsetHeight: body.offsetHeight,
+            htmlScrollHeight: html.scrollHeight,
+            contentHeight,
+            finalHeight
+          });
+          
+          iframe.style.height = `${finalHeight}px`;
           setLoading(false);
         } catch (e) {
           console.error("Failed to resize iframe:", e);
+          iframe.style.height = "500px"; // Fallback height
           setLoading(false);
         }
       };
@@ -226,13 +244,19 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
       const totalImages = images.length;
 
       if (totalImages === 0) {
-        setTimeout(resizeIframe, 100);
+        // Multiple resize attempts to ensure accurate measurement
+        setTimeout(resizeIframe, 50);
+        setTimeout(resizeIframe, 150);
+        setTimeout(resizeIframe, 300);
       } else {
         images.forEach((img) => {
           const handleImageLoad = () => {
             loadedImages++;
             if (loadedImages === totalImages) {
-              setTimeout(resizeIframe, 100);
+              // Multiple resize attempts after images load
+              setTimeout(resizeIframe, 50);
+              setTimeout(resizeIframe, 150);
+              setTimeout(resizeIframe, 300);
             }
           };
 
