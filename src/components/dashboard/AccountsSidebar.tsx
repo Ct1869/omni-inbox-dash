@@ -14,7 +14,9 @@ import {
   MoreHorizontal,
   RefreshCcw,
   Check,
-  Mail
+  Mail,
+  RefreshCw,
+  Bell
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -25,6 +27,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import type { Account } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +53,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSettingUpWatches, setIsSettingUpWatches] = useState(false);
   const [accountFilter, setAccountFilter] = useState<'all' | 'gmail' | 'outlook'>('all');
+  const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(new Set());
   const userEmail = localStorage.getItem("userEmail") || "user@email.com";
   const userName = userEmail.split("@")[0];
   
@@ -73,36 +78,78 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
     }
   };
 
+  const handleSyncAccount = async (accountId: string, provider: string) => {
+    setSyncingAccounts(prev => new Set(prev).add(accountId));
+    
+    try {
+      const functionName = provider === 'gmail' ? 'sync-messages' : 'sync-outlook-messages';
+      const { error } = await supabase.functions.invoke(functionName, {
+        body: { accountId },
+      });
+
+      if (error) throw error;
+
+      toast.success(`${provider === 'gmail' ? 'Gmail' : 'Outlook'} account synced successfully`);
+      onRefresh();
+    } catch (error) {
+      console.error("Sync error:", error);
+      toast.error(`Failed to sync ${provider === 'gmail' ? 'Gmail' : 'Outlook'} account`);
+    } finally {
+      setSyncingAccounts(prev => {
+        const next = new Set(prev);
+        next.delete(accountId);
+        return next;
+      });
+    }
+  };
+
+  const handleSyncAll = async () => {
+    const accountsToSync = filteredAccounts;
+    
+    toast.info(`Syncing ${accountsToSync.length} account(s)...`);
+    
+    for (const account of accountsToSync) {
+      await handleSyncAccount(account.id, account.provider || 'gmail');
+    }
+  };
+
   const handleSetupWatches = async () => {
     setIsSettingUpWatches(true);
     toast.loading("Setting up push notifications...", { id: "setup-watches" });
     
     try {
-      const { data, error } = await supabase.functions.invoke("setup-gmail-watches");
-      
-      if (error) throw error;
-      
-      // Show summary
-      const results = data.results || [];
-      const successful = results.filter((r: any) => r.success).length;
-      const failed = results.filter((r: any) => !r.success).length;
-      
-      if (failed === 0) {
-        toast.success(`Push notifications enabled for ${successful} account(s)`, { id: "setup-watches" });
-      } else {
-        toast.warning(`Enabled for ${successful} account(s), ${failed} failed`, { id: "setup-watches" });
+      // Setup Gmail watches
+      const gmailAccounts = filteredAccounts.filter(a => a.provider === 'gmail');
+      if (gmailAccounts.length > 0) {
+        const { data: gmailData, error: gmailError } = await supabase.functions.invoke('setup-gmail-watches');
+        if (gmailError) throw gmailError;
+        
+        const gmailResults = gmailData?.results || [];
+        gmailResults.forEach((result: any) => {
+          if (!result.success) {
+            toast.error(`Gmail ${result.email}: ${result.message}`);
+          }
+        });
       }
-      
-      // Show detailed results
-      results.forEach((result: any) => {
-        if (!result.success) {
-          toast.error(`${result.email}: ${result.message}`);
-        }
-      });
-      
+
+      // Setup Outlook subscriptions
+      const outlookAccounts = filteredAccounts.filter(a => a.provider === 'outlook');
+      if (outlookAccounts.length > 0) {
+        const { data: outlookData, error: outlookError } = await supabase.functions.invoke('setup-outlook-subscriptions');
+        if (outlookError) throw outlookError;
+        
+        const outlookResults = outlookData?.results || [];
+        outlookResults.forEach((result: any) => {
+          if (!result.success) {
+            toast.error(`Outlook ${result.email}: ${result.message}`);
+          }
+        });
+      }
+
+      toast.success("Push notifications setup complete", { id: "setup-watches" });
       onRefresh();
     } catch (err: any) {
-      console.error("Setup watches error:", err);
+      console.error("Setup notifications error:", err);
       toast.error(err.message || "Failed to setup push notifications", { id: "setup-watches" });
     } finally {
       setIsSettingUpWatches(false);
@@ -190,6 +237,8 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Filter Accounts</DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={() => setAccountFilter('all')} 
                 className="cursor-pointer"
@@ -213,6 +262,12 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                 {accountFilter === 'outlook' && <Check className="h-4 w-4 mr-2" />}
                 {accountFilter !== 'outlook' && <span className="w-4 mr-2" />}
                 Outlook Only
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Sync Options</DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleSyncAll} className="cursor-pointer">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Sync All Accounts
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -299,78 +354,98 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                   const isSyncCompleted = syncStatus?.status === "completed";
                   const isSyncFailed = syncStatus?.status === "failed";
                   const isGmail = account.provider === 'gmail';
+                  const isSyncingThis = syncingAccounts.has(account.id);
 
                   return (
-                    <button
+                    <div
                       key={account.id}
-                      onClick={() => onSelectAccount(account)}
-                      className={cn(
-                        "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors",
-                        selectedAccount?.id === account.id
-                          ? "bg-muted/50 text-foreground"
-                          : "hover:bg-muted/30"
-                      )}
+                      className="flex items-center gap-1 group"
                     >
-                      <Avatar className="h-8 w-8 flex-shrink-0">
-                        <AvatarFallback className={cn(
-                          "text-xs",
-                          isGmail ? "bg-[hsl(4,82%,57%)]/10 text-[hsl(4,82%,57%)]" : "bg-primary/10 text-primary"
-                        )}>
-                          {getInitials(account.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
-                        <div className="font-medium text-sm truncate">{account.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{account.email}</div>
-                      </div>
-                      
-                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
-                        {/* Sync status indicator */}
-                        {isAccountSyncing && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <RefreshCcw className="h-3.5 w-3.5 text-blue-500 animate-spin" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Syncing... {syncStatus.messagesSynced} messages</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                      <button
+                        onClick={() => onSelectAccount(account)}
+                        className={cn(
+                          "flex-1 flex items-center gap-2 px-2 py-2 rounded-md transition-colors",
+                          selectedAccount?.id === account.id
+                            ? "bg-muted/50 text-foreground"
+                            : "hover:bg-muted/30"
                         )}
+                      >
+                        <Avatar className="h-8 w-8 flex-shrink-0">
+                          <AvatarFallback className={cn(
+                            "text-xs",
+                            isGmail ? "bg-[hsl(4,82%,57%)]/10 text-[hsl(4,82%,57%)]" : "bg-primary/10 text-primary"
+                          )}>
+                            {getInitials(account.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
+                          <div className="font-medium text-sm truncate">{account.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{account.email}</div>
+                        </div>
                         
-                        {isSyncFailed && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertCircle className="h-3.5 w-3.5 text-red-500" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-xs">Sync failed: {syncStatus.errorMessage}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                        
-                        {isSyncCompleted && (
-                          <Check className="h-3.5 w-3.5 text-green-500 animate-fade-in" />
-                        )}
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+                          {/* Sync status indicator */}
+                          {isAccountSyncing && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <RefreshCcw className="h-3.5 w-3.5 text-blue-500 animate-spin" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Syncing... {syncStatus.messagesSynced} messages</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          
+                          {isSyncFailed && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">Sync failed: {syncStatus.errorMessage}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          
+                          {isSyncCompleted && (
+                            <Check className="h-3.5 w-3.5 text-green-500 animate-fade-in" />
+                          )}
 
-                        {account.unreadCount > 0 && (
-                          <Badge 
-                            variant="secondary" 
-                            className={cn(
-                              "h-5 px-2 text-xs min-w-[24px] justify-center flex-shrink-0",
-                              isGmail 
-                                ? "bg-[hsl(4,82%,57%)] text-white" 
-                                : "bg-primary text-primary-foreground"
-                            )}
-                          >
-                            {account.unreadCount}
-                          </Badge>
-                        )}
-                      </div>
-                    </button>
+                          {account.unreadCount > 0 && (
+                            <Badge 
+                              variant="secondary" 
+                              className={cn(
+                                "h-5 px-2 text-xs min-w-[24px] justify-center flex-shrink-0",
+                                isGmail 
+                                  ? "bg-[hsl(4,82%,57%)] text-white" 
+                                  : "bg-primary text-primary-foreground"
+                              )}
+                            >
+                              {account.unreadCount}
+                            </Badge>
+                          )}
+                        </div>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSyncAccount(account.id, account.provider || 'gmail');
+                        }}
+                        disabled={isSyncingThis || isAccountSyncing}
+                      >
+                        <RefreshCw className={cn(
+                          "h-3.5 w-3.5",
+                          (isSyncingThis || isAccountSyncing) && "animate-spin"
+                        )} />
+                      </Button>
+                    </div>
                   );
                 })
               )}
