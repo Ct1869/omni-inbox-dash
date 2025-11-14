@@ -335,66 +335,66 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
       {/* Email Accounts */}
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {!provider && (
-            <>
-              <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1">
-                Inboxes
+          <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1">
+            Inboxes
+          </div>
+          
+          {/* Gmail Inbox - show on gmail pages or when no provider */}
+          {(!provider || provider === 'gmail') && (
+            <button
+              onClick={() => {
+                setAccountFilter('gmail');
+                navigate('/dashboard/gmail');
+              }}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
+                !selectedAccount && accountFilter === 'gmail'
+                  ? "bg-muted/50 text-foreground"
+                  : "hover:bg-muted/30"
+              )}
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                <Mail className="h-4 w-4 text-primary-foreground" />
               </div>
-              
-              {/* Gmail Inbox */}
-              <button
-                onClick={() => {
-                  setAccountFilter('gmail');
-                  navigate('/dashboard/gmail');
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
-                  !selectedAccount && accountFilter === 'gmail'
-                    ? "bg-muted/50 text-foreground"
-                    : "hover:bg-muted/30"
-                )}
-              >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                  <Mail className="h-4 w-4 text-primary-foreground" />
-                </div>
-                <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
-                  <div className="font-medium text-sm truncate">Gmail Inbox</div>
-                  <div className="text-xs text-muted-foreground truncate">All Gmail accounts</div>
-                </div>
-                {gmailUnread > 0 && (
-                  <Badge variant="secondary" className="shrink-0">
-                    {gmailUnread}
-                  </Badge>
-                )}
-              </button>
+              <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
+                <div className="font-medium text-sm truncate">Gmail Inbox</div>
+                <div className="text-xs text-muted-foreground truncate">All Gmail accounts</div>
+              </div>
+              {gmailUnread > 0 && (
+                <Badge variant="secondary" className="shrink-0">
+                  {gmailUnread}
+                </Badge>
+              )}
+            </button>
+          )}
 
-              {/* Outlook Inbox */}
-              <button
-                onClick={() => {
-                  setAccountFilter('outlook');
-                  navigate('/dashboard/outlook');
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
-                  !selectedAccount && accountFilter === 'outlook'
-                    ? "bg-muted/50 text-foreground"
-                    : "hover:bg-muted/30"
-                )}
-              >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                  <Mail className="h-4 w-4 text-primary-foreground" />
-                </div>
-                <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
-                  <div className="font-medium text-sm truncate">Outlook Inbox</div>
-                  <div className="text-xs text-muted-foreground truncate">All Outlook accounts</div>
-                </div>
-                {outlookUnread > 0 && (
-                  <Badge variant="secondary" className="shrink-0">
-                    {outlookUnread}
-                  </Badge>
-                )}
-              </button>
-            </>
+          {/* Outlook Inbox - show on outlook pages or when no provider */}
+          {(!provider || provider === 'outlook') && (
+            <button
+              onClick={() => {
+                setAccountFilter('outlook');
+                navigate('/dashboard/outlook');
+              }}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-2 rounded-md transition-colors mb-1",
+                !selectedAccount && accountFilter === 'outlook'
+                  ? "bg-muted/50 text-foreground"
+                  : "hover:bg-muted/30"
+              )}
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                <Mail className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
+                <div className="font-medium text-sm truncate">Outlook Inbox</div>
+                <div className="text-xs text-muted-foreground truncate">All Outlook accounts</div>
+              </div>
+              {outlookUnread > 0 && (
+                <Badge variant="secondary" className="shrink-0">
+                  {outlookUnread}
+                </Badge>
+              )}
+            </button>
           )}
 
           <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1 mt-3">
