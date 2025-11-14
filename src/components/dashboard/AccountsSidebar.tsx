@@ -40,9 +40,10 @@ interface AccountsSidebarProps {
   onConnectOutlook: () => void;
   onRefresh: () => void;
   onCompose: () => void;
+  refreshTrigger?: number;
 }
 
-const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onConnectOutlook, onRefresh, onCompose }: AccountsSidebarProps) => {
+const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onConnectOutlook, onRefresh, onCompose, refreshTrigger }: AccountsSidebarProps) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -132,7 +133,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
     };
 
     fetchAccounts();
-  }, []);
+  }, [refreshTrigger]);
 
   const getInitials = (name: string) => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
