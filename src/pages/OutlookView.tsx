@@ -221,6 +221,7 @@ const OutlookView = () => {
             <MessageDetail 
               message={selectedMessage} 
               accountId={selectedAccount?.id}
+              provider="outlook"
               onMessageDeleted={() => {
                 setSelectedMessage(null);
                 setRefreshTrigger(prev => prev + 1);
@@ -235,6 +236,7 @@ const OutlookView = () => {
         onOpenChange={setIsComposeOpen}
         accountId={selectedAccount?.id || ''}
         accountEmail={selectedAccount?.email || ''}
+        provider="outlook"
       />
     </div>
   );

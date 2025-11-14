@@ -24,9 +24,10 @@ interface MessageDetailProps {
   message: Message | null;
   accountId?: string;
   onMessageDeleted?: () => void;
+  provider?: 'gmail' | 'outlook';
 }
 
-const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailProps) => {
+const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail' }: MessageDetailProps) => {
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -69,7 +70,8 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
 
         // Mark as read when opening
         if (message.isUnread && accountId && data?.message_id) {
-          supabase.functions.invoke('send-reply', {
+          const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
+          supabase.functions.invoke(functionName, {
             body: {
               accountId,
               messageId: data.message_id,
@@ -92,7 +94,8 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
     if (!replyText.trim() || !message || !accountId) return;
     setIsSending(true);
     try {
-      const { error } = await supabase.functions.invoke('send-reply', {
+      const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
+      const { error } = await supabase.functions.invoke(functionName, {
         body: {
           accountId,
           messageId: message.id,
@@ -115,7 +118,8 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
     const email = prompt('Forward to (email):');
     if (!email || !message || !accountId) return;
     try {
-      const { error } = await supabase.functions.invoke('send-reply', {
+      const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
+      const { error } = await supabase.functions.invoke(functionName, {
         body: {
           accountId,
           messageId: message.id,
@@ -134,7 +138,8 @@ const MessageDetail = ({ message, accountId, onMessageDeleted }: MessageDetailPr
     if (!message || !accountId) return;
     if (!confirm('Move this message to trash?')) return;
     try {
-      const { error } = await supabase.functions.invoke('send-reply', {
+      const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
+      const { error } = await supabase.functions.invoke(functionName, {
         body: {
           accountId,
           messageId: message.id,
