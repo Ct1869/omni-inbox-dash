@@ -12,9 +12,10 @@ interface ComposeDialogProps {
   onOpenChange: (open: boolean) => void;
   accountId: string;
   accountEmail: string;
+  provider?: 'gmail' | 'outlook';
 }
 
-const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail }: ComposeDialogProps) => {
+const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail, provider = 'gmail' }: ComposeDialogProps) => {
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -29,7 +30,8 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail }: ComposeD
 
     setIsSending(true);
     try {
-      const { error } = await supabase.functions.invoke('send-reply', {
+      const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
+      const { error } = await supabase.functions.invoke(functionName, {
         body: {
           accountId,
           composeData: {

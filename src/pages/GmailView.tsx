@@ -221,6 +221,7 @@ const GmailView = () => {
             <MessageDetail 
               message={selectedMessage} 
               accountId={selectedAccount?.id}
+              provider="gmail"
               onMessageDeleted={() => {
                 setSelectedMessage(null);
                 setRefreshTrigger(prev => prev + 1);
@@ -235,6 +236,7 @@ const GmailView = () => {
         onOpenChange={setIsComposeOpen}
         accountId={selectedAccount?.id || ''}
         accountEmail={selectedAccount?.email || ''}
+        provider="gmail"
       />
     </div>
   );
