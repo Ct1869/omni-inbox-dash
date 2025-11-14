@@ -107,9 +107,19 @@ const Dashboard = () => {
       
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: { code, redirectUri },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function error:", error);
+        throw error;
+      }
+
+      if (!data || !data.account) {
+        throw new Error("Invalid response from server");
+      }
 
       toast.success(`${provider} account connected: ${data.account.email}`);
       setRefreshTrigger(prev => prev + 1);
