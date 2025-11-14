@@ -149,7 +149,7 @@ const GmailView = () => {
     navigate("/auth");
   };
   return <div className="flex h-screen overflow-hidden bg-background">
-      <AccountsSidebar selectedAccount={selectedAccount} onSelectAccount={handleSelectAccount} onConnectGmail={initiateGmailOAuth} onConnectOutlook={initiateOutlookOAuth} onRefresh={() => setRefreshTrigger(prev => prev + 1)} onCompose={() => setIsComposeOpen(true)} onSyncAll={handleSyncNow} refreshTrigger={refreshTrigger} />
+      <AccountsSidebar selectedAccount={selectedAccount} onSelectAccount={handleSelectAccount} onConnectGmail={initiateGmailOAuth} onConnectOutlook={initiateOutlookOAuth} onRefresh={() => setRefreshTrigger(prev => prev + 1)} onCompose={() => setIsComposeOpen(true)} onSyncAll={handleSyncNow} refreshTrigger={refreshTrigger} provider="gmail" />
       
       <div className="flex flex-1 flex-col overflow-hidden">
         <DashboardHeader searchQuery={searchQuery} onSearchChange={setSearchQuery} filterUnread={filterUnread} onFilterUnreadChange={setFilterUnread} filterFlagged={filterFlagged} onFilterFlaggedChange={setFilterFlagged} onLogout={handleLogout} />
