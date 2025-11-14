@@ -10,9 +10,6 @@ import { toast } from "sonner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import type { Account, Message } from "@/pages/Dashboard";
-import { Mail, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 const GmailInbox = () => {
   const navigate = useNavigate();
@@ -134,44 +131,15 @@ const GmailInbox = () => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header with provider toggle */}
-        <div className="h-14 border-b bg-background flex items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {gmailAccounts.length} account{gmailAccounts.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/dashboard/gmail')}
-              className={cn(
-                "gap-2",
-                "bg-primary text-primary-foreground hover:bg-primary/90"
-              )}
-            >
-              <Mail className="h-4 w-4" />
-              Gmail
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/dashboard/outlook')}
-              className="gap-2"
-            >
-              <Mail className="h-4 w-4" />
-              Outlook
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <DashboardHeader
+          searchQuery=""
+          onSearchChange={() => {}}
+          filterUnread={false}
+          onFilterUnreadChange={() => {}}
+          filterFlagged={false}
+          onFilterFlaggedChange={() => {}}
+          onLogout={handleLogout}
+        />
 
         <div className="flex-1 flex overflow-hidden">
           <div className={selectedMessage ? "hidden lg:block lg:w-1/2" : "flex-1"}>

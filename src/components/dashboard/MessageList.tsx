@@ -19,8 +19,7 @@ import {
   Inbox,
   RefreshCcw,
   AlertCircle,
-  CheckCircle,
-  Mail
+  CheckCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Account, Message } from "@/pages/Dashboard";
@@ -505,28 +504,6 @@ const MessageList = ({
               </Button>
             </div>
           )}
-        </div>
-
-        {/* Mailbox view toggle - Inbox/Sent */}
-        <div className="flex items-center gap-2 pt-2">
-          <Button
-            variant={mailboxView === "inbox" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onMailboxViewChange?.("inbox")}
-            className="gap-2 flex-1"
-          >
-            <Inbox className="h-4 w-4" />
-            Inbox
-          </Button>
-          <Button
-            variant={mailboxView === "sent" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onMailboxViewChange?.("sent")}
-            className="gap-2 flex-1"
-          >
-            <Mail className="h-4 w-4" />
-            Sent
-          </Button>
         </div>
 
         {/* Search */}
