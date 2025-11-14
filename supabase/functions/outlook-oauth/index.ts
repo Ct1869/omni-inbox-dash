@@ -17,38 +17,15 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Get code and state from query parameters
-    const url = new URL(req.url);
-    console.log("Received callback URL:", req.url);
-    console.log("Query params:", Object.fromEntries(url.searchParams.entries()));
-    
-    const code = url.searchParams.get("code");
-    const error = url.searchParams.get("error");
-    const errorDescription = url.searchParams.get("error_description");
-    const state = url.searchParams.get("state");
-    
-    if (error) {
-      console.error("OAuth error from Microsoft:", error, errorDescription);
-      throw new Error(`OAuth error: ${error} - ${errorDescription}`);
-    }
-    
-    if (!code) {
-      console.error("No code received. All params:", Object.fromEntries(url.searchParams.entries()));
-      throw new Error("Authorization code is required");
-    }
-
-    // Extract the origin from state parameter
-    const frontendOrigin = state?.replace("outlook_oauth_", "") || "";
-    
-    // Parse request body to get code and redirectUri from frontend
+    // Parse request body
     const body = await req.json();
-    const codeFromBody = body.code;
+    const code = body.code;
     const redirectUri = body.redirectUri;
     
-    const finalCode = code || codeFromBody;
+    console.log("Received request body:", { code: code ? "present" : "missing", redirectUri });
     
-    if (!finalCode) {
-      console.error("No code received. All params:", Object.fromEntries(url.searchParams.entries()));
+    if (!code) {
+      console.error("No code in request body");
       throw new Error("Authorization code is required");
     }
     
@@ -64,7 +41,7 @@ serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        code: finalCode,
+        code: code,
         client_id: MICROSOFT_CLIENT_ID!,
         client_secret: MICROSOFT_CLIENT_SECRET!,
         redirect_uri: redirectUri,
@@ -100,7 +77,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       console.error("No authorization header found");
-      throw new Error("Unauthorized - Please log in first");
+      throw new Error("Not authenticated");
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
@@ -109,7 +86,7 @@ serve(async (req) => {
 
     if (userError || !user) {
       console.error("Failed to get user:", userError);
-      throw new Error("Unauthorized - Please log in first");
+      throw new Error("Not authenticated");
     }
 
     const userEmail = userInfo.mail || userInfo.userPrincipalName;
