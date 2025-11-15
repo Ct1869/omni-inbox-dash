@@ -38,20 +38,23 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
         .replace(/Ã¨/g, "è")
         .replace(/Ã /g, "à");
 
-      // Configure DOMPurify
+      // Configure DOMPurify with strict security settings to prevent XSS
       const cleanHtml = DOMPurify.sanitize(processedHtml, {
         ALLOWED_TAGS: [
           "div", "span", "p", "br", "strong", "b", "em", "i", "u", "a", "img", 
           "table", "thead", "tbody", "tr", "th", "td", "h1", "h2", "h3", "h4", 
-          "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "code", "hr", 
-          "sup", "sub", "font", "center"
+          "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "code", "hr"
         ],
         ALLOWED_ATTR: [
-          "href", "src", "alt", "title", "width", "height", "style", 
-          "class", "id", "align", "valign", "bgcolor", "color", 
-          "border", "cellpadding", "cellspacing", "colspan", "rowspan"
+          "href", "src", "alt", "title", "width", "height", 
+          "class", "id", "align", "valign", "colspan", "rowspan"
         ],
-        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+        // Explicitly forbid dangerous attributes that can execute scripts
+        FORBID_ATTR: ["style", "onerror", "onload", "onclick", "onmouseover", "bgcolor", "color", "border"],
+        // Explicitly forbid dangerous tags
+        FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button"],
+        // Restrict URLs to safe protocols only (https, http, mailto)
+        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
       });
 
       // Determine theme colors
