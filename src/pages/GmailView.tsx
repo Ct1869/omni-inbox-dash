@@ -148,7 +148,7 @@ const GmailView = () => {
     await supabase.auth.signOut();
     navigate("/auth");
   };
-  return <div className="flex h-screen overflow-hidden bg-background">
+  return <div className="flex h-screen overflow-hidden bg-background animate-fade-in">
       <AccountsSidebar selectedAccount={selectedAccount} onSelectAccount={handleSelectAccount} onConnectGmail={initiateGmailOAuth} onConnectOutlook={initiateOutlookOAuth} onRefresh={() => setRefreshTrigger(prev => prev + 1)} onCompose={() => setIsComposeOpen(true)} onSyncAll={handleSyncNow} refreshTrigger={refreshTrigger} provider="gmail" />
       
       <div className="flex flex-1 flex-col overflow-hidden">
