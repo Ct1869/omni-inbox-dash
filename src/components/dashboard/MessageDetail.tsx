@@ -19,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { Message } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import EmailViewer from "./EmailViewer";
+import { replyEmailSchema } from "@/lib/validation";
+import { z } from "zod";
 
 interface MessageDetailProps {
   message: Message | null;
@@ -91,24 +93,43 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
   }, [message, toast, accountId]);
 
   const handleReply = async () => {
-    if (!replyText.trim() || !message || !accountId) return;
-    setIsSending(true);
+    if (!message || !accountId) return;
+    
+    // SECURITY: Validate reply content
     try {
+      const validated = replyEmailSchema.parse({
+        to: message.from.email,
+        body: replyText.trim()
+      });
+
+      setIsSending(true);
       const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
       const { error } = await supabase.functions.invoke(functionName, {
         body: {
           accountId,
           messageId: message.id,
-          replyText,
+          replyText: validated.body,
         },
       });
       if (error) throw error;
       toast({ title: 'Reply sent successfully' });
       setReplyText('');
       setIsReplying(false);
-    } catch (err: any) {
-      console.error('Send reply error:', err);
-      toast({ title: 'Failed to send reply', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({ 
+          title: 'Validation error', 
+          description: err.errors[0].message,
+          variant: 'destructive' 
+        });
+      } else {
+        console.error('Send reply error:', err);
+        toast({ 
+          title: 'Failed to send reply', 
+          description: err instanceof Error ? err.message : "Unknown error",
+          variant: 'destructive' 
+        });
+      }
     } finally {
       setIsSending(false);
     }
@@ -117,20 +138,36 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
   const handleForward = async () => {
     const email = prompt('Forward to (email):');
     if (!email || !message || !accountId) return;
+    
+    // SECURITY: Validate email address
     try {
+      const validated = z.string().email("Invalid email format").parse(email.trim());
+      
       const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
       const { error } = await supabase.functions.invoke(functionName, {
         body: {
           accountId,
           messageId: message.id,
-          forwardTo: email,
+          forwardTo: validated,
         },
       });
       if (error) throw error;
       toast({ title: 'Message forwarded' });
-    } catch (err: any) {
-      console.error('Forward error:', err);
-      toast({ title: 'Failed to forward', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({ 
+          title: 'Invalid email address', 
+          description: 'Please enter a valid email address',
+          variant: 'destructive' 
+        });
+      } else {
+        console.error('Forward error:', err);
+        toast({ 
+          title: 'Failed to forward', 
+          description: err instanceof Error ? err.message : "Unknown error",
+          variant: 'destructive' 
+        });
+      }
     }
   };
 
