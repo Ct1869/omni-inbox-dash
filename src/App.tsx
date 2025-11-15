@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { MessageListSkeleton } from "@/components/skeletons/MessageListSkeleton";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
@@ -29,11 +30,31 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Navigate to="/auth" replace />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/dashboard/gmail" element={<GmailInbox />} />
-              <Route path="/dashboard/outlook" element={<OutlookInbox />} />
-              <Route path="/dashboard/gmail/:accountId" element={<GmailView />} />
-              <Route path="/dashboard/outlook/:accountId" element={<OutlookView />} />
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/gmail" element={
+                <ProtectedRoute>
+                  <GmailInbox />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/outlook" element={
+                <ProtectedRoute>
+                  <OutlookInbox />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/gmail/:accountId" element={
+                <ProtectedRoute>
+                  <GmailView />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/outlook/:accountId" element={
+                <ProtectedRoute>
+                  <OutlookView />
+                </ProtectedRoute>
+              } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

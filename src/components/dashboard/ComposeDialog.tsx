@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { composeEmailSchema, type ComposeEmailInput } from "@/lib/validation";
+import { z } from "zod";
 
 interface ComposeDialogProps {
   open: boolean;
@@ -23,21 +25,24 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail, provider =
   const { toast } = useToast();
 
   const handleSend = async () => {
-    if (!to.trim() || !subject.trim()) {
-      toast({ title: "Please fill in recipient and subject", variant: "destructive" });
-      return;
-    }
-
-    setIsSending(true);
+    // SECURITY: Validate all inputs before sending
     try {
+      const validated: ComposeEmailInput = composeEmailSchema.parse({
+        to: to.trim(),
+        subject: subject.trim(),
+        body: body
+      });
+
+      setIsSending(true);
+      
       const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
       const { error } = await supabase.functions.invoke(functionName, {
         body: {
           accountId,
           composeData: {
-            to,
-            subject,
-            body: body || " ",
+            to: validated.to,
+            subject: validated.subject,
+            body: validated.body || " ",
           },
         },
       });
@@ -49,9 +54,22 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail, provider =
       setSubject("");
       setBody("");
       onOpenChange(false);
-    } catch (err: any) {
-      console.error('Send email error:', err);
-      toast({ title: 'Failed to send email', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        // Show first validation error
+        toast({ 
+          title: "Validation error", 
+          description: err.errors[0].message,
+          variant: "destructive" 
+        });
+      } else {
+        console.error('Send email error:', err);
+        toast({ 
+          title: 'Failed to send email', 
+          description: err instanceof Error ? err.message : "Unknown error",
+          variant: 'destructive' 
+        });
+      }
     } finally {
       setIsSending(false);
     }
