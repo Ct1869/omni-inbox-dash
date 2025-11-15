@@ -188,7 +188,19 @@ const GmailView = () => {
             </div>
           </div>
 
-          
+          {selectedMessage && (
+            <div className="flex-1 overflow-hidden">
+              <MessageDetail 
+                message={selectedMessage} 
+                accountId={accountId} 
+                onMessageDeleted={() => {
+                  setSelectedMessage(null);
+                  setRefreshTrigger(prev => prev + 1);
+                }} 
+                provider="gmail" 
+              />
+            </div>
+          )}
         </div>
       </div>
 
