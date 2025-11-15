@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import debounce from "lodash.debounce";
 import throttle from "lodash.throttle";
+import { useSearchParams } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,25 +56,66 @@ const MessageList = ({
   onMailboxViewChange,
   provider,
 }: MessageListProps) => {
+  // PERFORMANCE: Use URL search params to persist pagination state across navigation
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1');
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [localSearch, setLocalSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isMarkingRead, setIsMarkingRead] = useState(false);
-  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const MESSAGES_PER_PAGE = 50;
+  const offset = (page - 1) * MESSAGES_PER_PAGE;
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   
   const syncStatuses = useSyncStatus(selectedAccount ? [selectedAccount.id] : undefined);
   const syncStatus = selectedAccount ? syncStatuses.get(selectedAccount.id) : undefined;
 
+  // PERFORMANCE: Restore scroll position when returning to a page
+  useEffect(() => {
+    if (!selectedAccount?.id) return;
+    
+    const savedPosition = sessionStorage.getItem(`scroll-${selectedAccount.id}`);
+    if (savedPosition && scrollViewportRef.current) {
+      setTimeout(() => {
+        scrollViewportRef.current?.scrollTo(0, parseInt(savedPosition));
+      }, 100); // Small delay to ensure content is rendered
+    }
+  }, [selectedAccount?.id, page]);
+
+  // PERFORMANCE: Save scroll position when user scrolls AND trigger load more
+  const handleScroll = useCallback(
+    throttle(() => {
+      const viewport = scrollViewportRef.current;
+      if (!viewport) return;
+      
+      // Save scroll position for restoration
+      if (selectedAccount?.id) {
+        sessionStorage.setItem(`scroll-${selectedAccount.id}`, String(viewport.scrollTop));
+      }
+      
+      // Load more when scrolled to 80% of the content
+      const scrollPercentage = (viewport.scrollTop + viewport.clientHeight) / viewport.scrollHeight;
+      if (scrollPercentage > 0.8 && hasMore && !isLoadingMore && !isLoading) {
+        loadMoreMessages();
+      }
+    }, 200),
+    [selectedAccount?.id, hasMore, isLoadingMore, isLoading]
+  );
+
   useEffect(() => {
     const fetchMessages = async () => {
       setIsLoading(true);
-      setOffset(0);
+      // Reset page to 1 when account/filter changes
+      if (page !== 1) {
+        setSearchParams({ page: '1' });
+        return;
+      }
+      
       try {
         let query = supabase
           .from('cached_messages')
@@ -126,7 +168,7 @@ const MessageList = ({
         
         const { data, error } = await query
           .order('received_at', { ascending: false })
-          .range(0, MESSAGES_PER_PAGE - 1);
+          .range(offset, offset + MESSAGES_PER_PAGE - 1);
         
         if (error) throw error;
         const mapped: Message[] = (data || []).map((m: any) => ({
@@ -145,7 +187,6 @@ const MessageList = ({
         }));
         setMessages(mapped);
         setHasMore(data?.length === MESSAGES_PER_PAGE);
-        setOffset(MESSAGES_PER_PAGE);
       } catch (err) {
         console.error('Load messages error:', err);
       } finally {
@@ -222,99 +263,14 @@ const MessageList = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedAccount, refreshTrigger, isUltimateInbox, mailboxView, provider]);
+  }, [selectedAccount, refreshTrigger, isUltimateInbox, mailboxView, provider, page, offset]);
 
   const loadMoreMessages = async () => {
     if (!hasMore || isLoading || isLoadingMore) return;
     
-    setIsLoadingMore(true);
-    try {
-      let query = supabase
-        .from('cached_messages')
-        .select('id, account_id, thread_id, sender_name, sender_email, subject, snippet, received_at, is_read, is_starred, has_attachments, labels, message_id');
-      
-      if (!isUltimateInbox && selectedAccount) {
-        query = query.eq('account_id', selectedAccount.id);
-      } else if (isUltimateInbox && provider) {
-        // Filter by provider in ultimate inbox mode
-        const { data: accounts } = await supabase
-          .from('email_accounts')
-          .select('id')
-          .eq('provider', provider)
-          .eq('is_active', true);
-        
-        if (accounts && accounts.length > 0) {
-          const accountIds = accounts.map(a => a.id);
-          query = query.in('account_id', accountIds);
-        } else {
-          setIsLoadingMore(false);
-          return;
-        }
-      }
-
-      // Apply mailbox filter based on account provider
-      if (selectedAccount) {
-        if (selectedAccount.provider === 'gmail') {
-          query = mailboxView === 'sent'
-            ? query.contains('labels', ['SENT'])
-            : query.contains('labels', ['INBOX']);
-        } else if (selectedAccount.provider === 'outlook') {
-          if (mailboxView === 'sent') {
-            query = query.eq('sender_email', selectedAccount.email);
-          } else {
-            query = query.neq('sender_email', selectedAccount.email);
-          }
-        }
-      } else {
-        // Ultimate Inbox: leave unfiltered to include Outlook messages
-      }
-      
-      const { data, error } = await query
-        .order('received_at', { ascending: false })
-        .range(offset, offset + MESSAGES_PER_PAGE - 1);
-      
-      if (error) throw error;
-      
-      const mapped: Message[] = (data || []).map((m: any) => ({
-        id: m.id,
-        accountId: m.account_id,
-        threadId: m.thread_id || '',
-        from: { name: m.sender_name || m.sender_email, email: m.sender_email },
-        subject: m.subject || '(no subject)',
-        preview: m.snippet || '',
-        date: m.received_at,
-        isUnread: !m.is_read,
-        isFlagged: m.is_starred,
-        hasAttachments: m.has_attachments,
-        labels: m.labels || [],
-        messageId: m.message_id,
-      }));
-      
-      setMessages(prev => [...prev, ...mapped]);
-      setHasMore(data?.length === MESSAGES_PER_PAGE);
-      setOffset(prev => prev + MESSAGES_PER_PAGE);
-    } catch (err) {
-      console.error('Load more messages error:', err);
-    } finally {
-      setIsLoadingMore(false);
-    }
+    // PERFORMANCE: Update page in URL to persist pagination state
+    setSearchParams({ page: String(page + 1) });
   };
-
-  // Throttled scroll handler to improve performance
-  const handleScroll = useCallback(
-    throttle(() => {
-      const viewport = scrollViewportRef.current;
-      if (!viewport) return;
-      
-      const scrollPercentage = (viewport.scrollTop + viewport.clientHeight) / viewport.scrollHeight;
-      
-      // Load more when scrolled to 80% of the content
-      if (scrollPercentage > 0.8 && hasMore && !isLoadingMore && !isLoading) {
-        loadMoreMessages();
-      }
-    }, 200),
-    [hasMore, isLoadingMore, isLoading]
-  );
 
   // Attach scroll handler to viewport
   useEffect(() => {
@@ -323,7 +279,7 @@ const MessageList = ({
 
     viewport.addEventListener('scroll', handleScroll);
     return () => viewport.removeEventListener('scroll', handleScroll);
-  }, [hasMore, isLoadingMore, isLoading, offset]);
+  }, [handleScroll]);
 
   // Memoize filtered messages to prevent unnecessary recalculations
   const filteredMessages = useMemo(() => {
