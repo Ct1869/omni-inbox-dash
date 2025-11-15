@@ -19,8 +19,7 @@ interface DashboardHeaderProps {
 const DashboardHeader = ({
   onLogout,
 }: DashboardHeaderProps) => {
-  const userEmail = localStorage.getItem("userEmail");
-
+  // SECURITY: Removed localStorage usage - use Supabase auth via getUser() instead
   return null; // Header is now integrated into the layout itself
 };
 

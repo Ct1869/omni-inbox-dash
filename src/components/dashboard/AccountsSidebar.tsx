@@ -37,6 +37,7 @@ import type { Account } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
+import { getUser } from "@/lib/auth";
 
 
 
@@ -60,10 +61,21 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
   const [isSettingUpWatches, setIsSettingUpWatches] = useState(false);
   const [accountFilter, setAccountFilter] = useState<'all' | 'gmail' | 'outlook'>('all');
   const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(new Set());
-  const userEmail = localStorage.getItem("userEmail") || "user@email.com";
+  const [userEmail, setUserEmail] = useState<string>("user@email.com");
   const userName = userEmail.split("@")[0];
   
   const syncStatuses = useSyncStatus(accounts.map(a => a.id));
+  
+  // SECURITY: Use Supabase auth instead of localStorage
+  useEffect(() => {
+    const fetchUser = async () => {
+      const user = await getUser();
+      if (user?.email) {
+        setUserEmail(user.email);
+      }
+    };
+    fetchUser();
+  }, []);
   
   const gmailAccounts = accounts.filter(a => a.provider === 'gmail');
   const outlookAccounts = accounts.filter(a => a.provider === 'outlook');
