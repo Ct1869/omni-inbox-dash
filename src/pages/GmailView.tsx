@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import type { Account, Message } from "@/pages/Dashboard";
+import ErrorBoundary, { CompactErrorFallback } from "@/components/ErrorBoundary";
 const GmailView = () => {
   const navigate = useNavigate();
   const {
@@ -149,7 +150,12 @@ const GmailView = () => {
     navigate("/auth");
   };
   return <div className="flex h-screen overflow-hidden bg-background animate-fade-in">
-      <AccountsSidebar selectedAccount={selectedAccount} onSelectAccount={handleSelectAccount} onConnectGmail={initiateGmailOAuth} onConnectOutlook={initiateOutlookOAuth} onRefresh={() => setRefreshTrigger(prev => prev + 1)} onCompose={() => setIsComposeOpen(true)} onSyncAll={handleSyncNow} refreshTrigger={refreshTrigger} provider="gmail" />
+      <ErrorBoundary 
+        fallback={<CompactErrorFallback title="Sidebar Error" message="Failed to load accounts" />}
+        showReload={false}
+      >
+        <AccountsSidebar selectedAccount={selectedAccount} onSelectAccount={handleSelectAccount} onConnectGmail={initiateGmailOAuth} onConnectOutlook={initiateOutlookOAuth} onRefresh={() => setRefreshTrigger(prev => prev + 1)} onCompose={() => setIsComposeOpen(true)} onSyncAll={handleSyncNow} refreshTrigger={refreshTrigger} provider="gmail" />
+      </ErrorBoundary>
       
       <div className="flex flex-1 flex-col overflow-hidden">
         <DashboardHeader searchQuery={searchQuery} onSearchChange={setSearchQuery} filterUnread={filterUnread} onFilterUnreadChange={setFilterUnread} filterFlagged={filterFlagged} onFilterFlaggedChange={setFilterFlagged} onLogout={handleLogout} />
@@ -184,21 +190,31 @@ const GmailView = () => {
                 </div>
               </div>
 
-              <MessageList selectedAccount={selectedAccount} selectedMessage={selectedMessage} onSelectMessage={handleSelectMessage} searchQuery={searchQuery} filterUnread={filterUnread} filterFlagged={filterFlagged} refreshTrigger={refreshTrigger} isUltimateInbox={false} mailboxView={mailboxView} />
+              <ErrorBoundary 
+                fallback={<CompactErrorFallback title="Message List Error" message="Failed to load messages" />}
+                showReload={false}
+              >
+                <MessageList selectedAccount={selectedAccount} selectedMessage={selectedMessage} onSelectMessage={handleSelectMessage} searchQuery={searchQuery} filterUnread={filterUnread} filterFlagged={filterFlagged} refreshTrigger={refreshTrigger} isUltimateInbox={false} mailboxView={mailboxView} />
+              </ErrorBoundary>
             </div>
           </div>
 
           {selectedMessage && (
             <div className="flex-1 overflow-hidden">
-              <MessageDetail 
-                message={selectedMessage} 
-                accountId={accountId} 
-                onMessageDeleted={() => {
-                  setSelectedMessage(null);
-                  setRefreshTrigger(prev => prev + 1);
-                }} 
-                provider="gmail" 
-              />
+              <ErrorBoundary 
+                fallback={<CompactErrorFallback title="Message Details Error" message="Failed to load message details" />}
+                showReload={false}
+              >
+                <MessageDetail 
+                  message={selectedMessage} 
+                  accountId={accountId} 
+                  onMessageDeleted={() => {
+                    setSelectedMessage(null);
+                    setRefreshTrigger(prev => prev + 1);
+                  }} 
+                  provider="gmail" 
+                />
+              </ErrorBoundary>
             </div>
           )}
         </div>

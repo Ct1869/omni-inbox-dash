@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import EmailViewer from "./EmailViewer";
 import { replyEmailSchema } from "@/lib/validation";
 import { z } from "zod";
+import { useRateLimit } from "@/hooks/useRateLimit";
 
 interface MessageDetailProps {
   message: Message | null;
@@ -41,6 +42,11 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
   const [hasAttachments, setHasAttachments] = useState(false);
   const [attachmentCount, setAttachmentCount] = useState<number>(0);
   const { toast } = useToast();
+
+  // SECURITY: Rate limit email actions to prevent spam
+  const rateLimitReply = useRateLimit(10, 60000); // 10 replies per minute
+  const rateLimitForward = useRateLimit(5, 60000); // 5 forwards per minute
+  const rateLimitDelete = useRateLimit(20, 60000); // 20 deletes per minute
 
   const getInitials = (name: string) => {
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -92,17 +98,17 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
     loadFullMessage();
   }, [message, toast, accountId]);
 
-  const handleReply = async () => {
+  const handleReplyInternal = async () => {
     if (!message || !accountId) return;
     
     // SECURITY: Validate reply content
-    try {
-      const validated = replyEmailSchema.parse({
-        to: message.from.email,
-        body: replyText.trim()
-      });
+    const validated = replyEmailSchema.parse({
+      to: message.from.email,
+      body: replyText.trim()
+    });
 
-      setIsSending(true);
+    setIsSending(true);
+    try {
       const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
       const { error } = await supabase.functions.invoke(functionName, {
         body: {
@@ -115,6 +121,14 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
       toast({ title: 'Reply sent successfully' });
       setReplyText('');
       setIsReplying(false);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleReply = async () => {
+    try {
+      await rateLimitReply(handleReplyInternal)();
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({ 
@@ -130,29 +144,33 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
           variant: 'destructive' 
         });
       }
-    } finally {
-      setIsSending(false);
     }
+  };
+
+  const handleForwardInternal = async (email: string) => {
+    if (!message || !accountId) return;
+    
+    // SECURITY: Validate email address
+    const validated = z.string().email("Invalid email format").parse(email.trim());
+    
+    const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
+    const { error } = await supabase.functions.invoke(functionName, {
+      body: {
+        accountId,
+        messageId: message.id,
+        forwardTo: validated,
+      },
+    });
+    if (error) throw error;
+    toast({ title: 'Message forwarded' });
   };
 
   const handleForward = async () => {
     const email = prompt('Forward to (email):');
-    if (!email || !message || !accountId) return;
+    if (!email) return;
     
-    // SECURITY: Validate email address
     try {
-      const validated = z.string().email("Invalid email format").parse(email.trim());
-      
-      const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
-      const { error } = await supabase.functions.invoke(functionName, {
-        body: {
-          accountId,
-          messageId: message.id,
-          forwardTo: validated,
-        },
-      });
-      if (error) throw error;
-      toast({ title: 'Message forwarded' });
+      await rateLimitForward(() => handleForwardInternal(email))();
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({ 
@@ -171,24 +189,33 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteInternal = async () => {
     if (!message || !accountId) return;
     if (!confirm('Move this message to trash?')) return;
+    
+    const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
+    const { error } = await supabase.functions.invoke(functionName, {
+      body: {
+        accountId,
+        messageId: message.id,
+        action: 'delete',
+      },
+    });
+    if (error) throw error;
+    toast({ title: 'Message deleted' });
+    onMessageDeleted?.();
+  };
+
+  const handleDelete = async () => {
     try {
-      const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
-      const { error } = await supabase.functions.invoke(functionName, {
-        body: {
-          accountId,
-          messageId: message.id,
-          action: 'delete',
-        },
-      });
-      if (error) throw error;
-      toast({ title: 'Message deleted' });
-      onMessageDeleted?.();
-    } catch (err: any) {
+      await rateLimitDelete(handleDeleteInternal)();
+    } catch (err) {
       console.error('Delete error:', err);
-      toast({ title: 'Failed to delete', description: err.message, variant: 'destructive' });
+      toast({ 
+        title: 'Failed to delete', 
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: 'destructive' 
+      });
     }
   };
 
