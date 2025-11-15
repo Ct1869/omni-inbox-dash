@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { composeEmailSchema, type ComposeEmailInput } from "@/lib/validation";
 import { z } from "zod";
+import { useRateLimit } from "@/hooks/useRateLimit";
 
 interface ComposeDialogProps {
   open: boolean;
@@ -23,18 +24,21 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail, provider =
   const [body, setBody] = useState("");
   const [isSending, setIsSending] = useState(false);
   const { toast } = useToast();
+  
+  // SECURITY: Rate limit to 5 emails per minute to prevent spam
+  const rateLimitSend = useRateLimit(5, 60000);
 
-  const handleSend = async () => {
+  const handleSendInternal = async () => {
     // SECURITY: Validate all inputs before sending
-    try {
-      const validated: ComposeEmailInput = composeEmailSchema.parse({
-        to: to.trim(),
-        subject: subject.trim(),
-        body: body
-      });
+    const validated: ComposeEmailInput = composeEmailSchema.parse({
+      to: to.trim(),
+      subject: subject.trim(),
+      body: body
+    });
 
-      setIsSending(true);
-      
+    setIsSending(true);
+    
+    try {
       const functionName = provider === 'outlook' ? 'send-outlook-reply' : 'send-reply';
       const { error } = await supabase.functions.invoke(functionName, {
         body: {
@@ -54,6 +58,14 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail, provider =
       setSubject("");
       setBody("");
       onOpenChange(false);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSend = async () => {
+    try {
+      await rateLimitSend(handleSendInternal)();
     } catch (err) {
       if (err instanceof z.ZodError) {
         // Show first validation error
@@ -70,8 +82,6 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail, provider =
           variant: 'destructive' 
         });
       }
-    } finally {
-      setIsSending(false);
     }
   };
 

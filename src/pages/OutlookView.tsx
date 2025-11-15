@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import type { Account, Message } from "@/pages/Dashboard";
+import ErrorBoundary, { CompactErrorFallback } from "@/components/ErrorBoundary";
 
 const OutlookView = () => {
   const navigate = useNavigate();
@@ -143,17 +144,22 @@ const OutlookView = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background animate-fade-in">
-      <AccountsSidebar
-        selectedAccount={selectedAccount}
-        onSelectAccount={handleSelectAccount}
-        onConnectGmail={initiateGmailOAuth}
-        onConnectOutlook={initiateOutlookOAuth}
-        onRefresh={() => setRefreshTrigger(prev => prev + 1)}
-        onCompose={() => setIsComposeOpen(true)}
-        onSyncAll={handleSyncNow}
-        refreshTrigger={refreshTrigger}
-        provider="outlook"
-      />
+      <ErrorBoundary 
+        fallback={<CompactErrorFallback title="Sidebar Error" message="Failed to load accounts" />}
+        showReload={false}
+      >
+        <AccountsSidebar
+          selectedAccount={selectedAccount}
+          onSelectAccount={handleSelectAccount}
+          onConnectGmail={initiateGmailOAuth}
+          onConnectOutlook={initiateOutlookOAuth}
+          onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+          onCompose={() => setIsComposeOpen(true)}
+          onSyncAll={handleSyncNow}
+          refreshTrigger={refreshTrigger}
+          provider="outlook"
+        />
+      </ErrorBoundary>
       
       <div className="flex flex-1 flex-col overflow-hidden">
         <DashboardHeader
@@ -201,17 +207,22 @@ const OutlookView = () => {
                 </div>
               </div>
 
-              <MessageList
-                selectedAccount={selectedAccount}
-                selectedMessage={selectedMessage}
-                onSelectMessage={handleSelectMessage}
-                searchQuery={searchQuery}
-                filterUnread={filterUnread}
-                filterFlagged={filterFlagged}
-                refreshTrigger={refreshTrigger}
-                isUltimateInbox={false}
-                mailboxView={mailboxView}
-              />
+              <ErrorBoundary 
+                fallback={<CompactErrorFallback title="Message List Error" message="Failed to load messages" />}
+                showReload={false}
+              >
+                <MessageList
+                  selectedAccount={selectedAccount}
+                  selectedMessage={selectedMessage}
+                  onSelectMessage={handleSelectMessage}
+                  searchQuery={searchQuery}
+                  filterUnread={filterUnread}
+                  filterFlagged={filterFlagged}
+                  refreshTrigger={refreshTrigger}
+                  isUltimateInbox={false}
+                  mailboxView={mailboxView}
+                />
+              </ErrorBoundary>
             </div>
           </div>
 
@@ -219,15 +230,20 @@ const OutlookView = () => {
             "flex-1 overflow-hidden",
             !selectedMessage && "hidden lg:block"
           )}>
-            <MessageDetail 
-              message={selectedMessage} 
-              accountId={selectedAccount?.id}
-              provider="outlook"
-              onMessageDeleted={() => {
-                setSelectedMessage(null);
-                setRefreshTrigger(prev => prev + 1);
-              }}
-            />
+            <ErrorBoundary 
+              fallback={<CompactErrorFallback title="Message Details Error" message="Failed to load message details" />}
+              showReload={false}
+            >
+              <MessageDetail 
+                message={selectedMessage} 
+                accountId={selectedAccount?.id}
+                provider="outlook"
+                onMessageDeleted={() => {
+                  setSelectedMessage(null);
+                  setRefreshTrigger(prev => prev + 1);
+                }}
+              />
+            </ErrorBoundary>
           </div>
         </div>
       </div>
