@@ -142,7 +142,7 @@ const OutlookView = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background animate-fade-in">
       <AccountsSidebar
         selectedAccount={selectedAccount}
         onSelectAccount={handleSelectAccount}
