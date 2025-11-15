@@ -22,24 +22,13 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
 
     setLoading(true);
 
-    // Sanitize and process HTML
+    // Sanitize HTML first, THEN fix encoding issues
     let processedHtml = htmlContent || "";
 
     if (processedHtml) {
-      // Fix encoding issues - replace common problematic characters
-      processedHtml = processedHtml
-        .replace(/Â/g, " ")
-        .replace(/â€™/g, "'")
-        .replace(/â€œ/g, '"')
-        .replace(/â€/g, '"')
-        .replace(/â€"/g, "—")
-        .replace(/â€"/g, "–")
-        .replace(/Ã©/g, "é")
-        .replace(/Ã¨/g, "è")
-        .replace(/Ã /g, "à");
-
       // Configure DOMPurify with strict security settings to prevent XSS
-      const cleanHtml = DOMPurify.sanitize(processedHtml, {
+      // SECURITY: Sanitize BEFORE applying any text replacements
+      let cleanHtml = DOMPurify.sanitize(processedHtml, {
         ALLOWED_TAGS: [
           "div", "span", "p", "br", "strong", "b", "em", "i", "u", "a", "img", 
           "table", "thead", "tbody", "tr", "th", "td", "h1", "h2", "h3", "h4", 
@@ -56,6 +45,19 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
         // Restrict URLs to safe protocols only (https, http, mailto)
         ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
       });
+
+      // Fix encoding issues AFTER sanitization to prevent injection
+      // Apply character replacements on the already-sanitized HTML
+      cleanHtml = cleanHtml
+        .replace(/Â/g, " ")
+        .replace(/â€™/g, "'")
+        .replace(/â€œ/g, '"')
+        .replace(/â€/g, '"')
+        .replace(/â€"/g, "—")
+        .replace(/â€"/g, "–")
+        .replace(/Ã©/g, "é")
+        .replace(/Ã¨/g, "è")
+        .replace(/Ã /g, "à");
 
       // Determine theme colors
       const isDark = theme === "dark";
