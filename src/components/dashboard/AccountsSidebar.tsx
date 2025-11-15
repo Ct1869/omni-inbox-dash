@@ -185,7 +185,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
         setIsLoading(true);
         let query = supabase
           .from('email_accounts')
-          .select('id, name, email, unread_count, provider')
+          .select('id, name, email, unread_count, provider, picture_url')
           .order('created_at', { ascending: false });
         
         if (provider) {
@@ -200,6 +200,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
           email: a.email,
           unreadCount: a.unread_count ?? 0,
           provider: a.provider,
+          picture_url: a.picture_url,
         }));
         setAccounts(mapped);
       } catch (err) {
@@ -355,8 +356,8 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                   : "hover:bg-muted/30"
               )}
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                <Mail className="h-4 w-4 text-primary-foreground" />
+              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <img src={gmailIcon} alt="Gmail" className="h-5 w-5" />
               </div>
               <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
                 <div className="font-medium text-sm truncate">Gmail Inbox</div>
@@ -384,8 +385,8 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                   : "hover:bg-muted/30"
               )}
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                <Mail className="h-4 w-4 text-primary-foreground" />
+              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <img src={outlookIcon} alt="Outlook" className="h-5 w-5" />
               </div>
               <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
                 <div className="font-medium text-sm truncate">Outlook Inbox</div>
@@ -438,12 +439,17 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                         )}
                       >
                         <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback className={cn(
-                            "text-xs",
-                            isGmail ? "bg-[hsl(4,82%,57%)]/10 text-[hsl(4,82%,57%)]" : "bg-primary/10 text-primary"
-                          )}>
-                            {getInitials(account.name)}
-                          </AvatarFallback>
+                          {account.picture_url ? (
+                            <AvatarImage src={account.picture_url} alt={account.name || account.email} />
+                          ) : (
+                            <AvatarFallback className="bg-white shadow-sm">
+                              <img 
+                                src={isGmail ? gmailIcon : outlookIcon} 
+                                alt={isGmail ? "Gmail" : "Outlook"} 
+                                className="h-5 w-5" 
+                              />
+                            </AvatarFallback>
+                          )}
                         </Avatar>
                         <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
                           <div className="font-medium text-sm truncate">{account.name}</div>
