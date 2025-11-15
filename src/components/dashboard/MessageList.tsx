@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import type { Account, Message } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
+import MessageItem from "./MessageItem";
 
 
 
@@ -327,32 +328,49 @@ const MessageList = ({
 
   const handleMarkSelectedAsRead = useCallback(async () => {
     if (selectedIds.size === 0) return;
+    
     setIsMarkingRead(true);
     
     try {
-      // Group by account
+      // Group messages by account
       const messagesByAccount = new Map<string, string[]>();
       messages.forEach(msg => {
         if (selectedIds.has(msg.id) && msg.messageId) {
-          const accountMsgs = messagesByAccount.get(msg.accountId) || [];
-          accountMsgs.push(msg.messageId);
-          messagesByAccount.set(msg.accountId, accountMsgs);
+          const msgIds = messagesByAccount.get(msg.accountId) || [];
+          msgIds.push(msg.messageId);
+          messagesByAccount.set(msg.accountId, msgIds);
         }
       });
 
-      // Mark as read for each account
-      for (const [accountId, messageIds] of messagesByAccount.entries()) {
-        await supabase.functions.invoke('send-reply', {
-          body: {
-            accountId,
-            messageIds,
-            action: 'markAsRead',
-          },
-        });
+      // PERFORMANCE: Batch all requests into single Promise.allSettled
+      // This prevents N+1 query problem by running all requests in parallel
+      const requests = Array.from(messagesByAccount.entries()).map(
+        ([accountId, messageIds]) => 
+          supabase.functions.invoke('send-reply', {
+            body: { accountId, messageIds, action: 'markAsRead' }
+          })
+      );
+
+      const results = await Promise.allSettled(requests);
+      
+      // Handle results and provide user feedback
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      
+      if (failed > 0) {
+        console.error('Some mark as read requests failed:', 
+          results.filter(r => r.status === 'rejected').map(r => r.reason)
+        );
+      }
+      
+      if (succeeded > 0) {
+        // Update local state optimistically
+        setMessages(prev => prev.map(msg => 
+          selectedIds.has(msg.id) ? { ...msg, isUnread: false } : msg
+        ));
       }
       
       setSelectedIds(new Set());
-      // Refresh will happen via parent
     } catch (err) {
       console.error('Mark as read error:', err);
     } finally {
@@ -363,6 +381,7 @@ const MessageList = ({
 
   const handleDeleteSelected = useCallback(async () => {
     if (selectedIds.size === 0) return;
+    
     setIsDeleting(true);
     
     try {
@@ -376,19 +395,32 @@ const MessageList = ({
         }
       });
 
-      // Delete for each account
-      for (const [accountId, messageIds] of messagesByAccount.entries()) {
-        await supabase.functions.invoke('send-reply', {
-          body: {
-            accountId,
-            messageIds,
-            action: 'delete',
-          },
-        });
+      // PERFORMANCE: Batch all delete requests into single Promise.allSettled
+      // This prevents N+1 query problem by running all requests in parallel
+      const requests = Array.from(messagesByAccount.entries()).map(
+        ([accountId, messageIds]) =>
+          supabase.functions.invoke('send-reply', {
+            body: { accountId, messageIds, action: 'delete' }
+          })
+      );
+
+      const results = await Promise.allSettled(requests);
+      
+      // Handle results
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      
+      if (failed > 0) {
+        console.error('Some delete requests failed:', 
+          results.filter(r => r.status === 'rejected').map(r => r.reason)
+        );
       }
       
-      // Remove deleted messages from local state
-      setMessages(prev => prev.filter(msg => !selectedIds.has(msg.id)));
+      if (succeeded > 0) {
+        // Remove deleted messages from local state optimistically
+        setMessages(prev => prev.filter(msg => !selectedIds.has(msg.id)));
+      }
+      
       setSelectedIds(new Set());
     } catch (err) {
       console.error('Delete error:', err);
@@ -527,142 +559,6 @@ const MessageList = ({
             )}
           </div>
         )}
-      </div>
-    </div>
-  );
-};
-
-interface MessageItemProps {
-  message: Message;
-  isSelected: boolean;
-  onSelect: (message: Message) => void;
-  isCheckboxSelected: boolean;
-  onToggleCheckbox: (id: string) => void;
-}
-
-const MessageItem = ({ 
-  message, 
-  isSelected, 
-  onSelect, 
-  isCheckboxSelected, 
-  onToggleCheckbox 
-}: MessageItemProps) => {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const hours = Math.floor(diff / 3600000);
-    
-    if (hours < 1) return "Just now";
-    if (hours < 24) return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    if (hours < 168) return date.toLocaleDateString("en-US", { weekday: "short" });
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
-  const getBrandInfo = (email: string, name: string) => {
-    const domain = email.toLowerCase().split('@')[1] || '';
-    const nameLower = name.toLowerCase();
-    
-    // Brand detection
-    const brands: Record<string, { color: string; initial: string }> = {
-      'stripe.com': { color: 'bg-[#635BFF] text-white', initial: 'S' },
-      'netflix.com': { color: 'bg-[#E50914] text-white', initial: 'N' },
-      'linkedin.com': { color: 'bg-[#0A66C2] text-white', initial: 'in' },
-      'asana.com': { color: 'bg-[#F06A6A] text-white', initial: 'A' },
-      'figma.com': { color: 'bg-[#F24E1E] text-white', initial: 'F' },
-      'docusign.com': { color: 'bg-[#FFCD00] text-black', initial: 'D' },
-      'github.com': { color: 'bg-[#181717] text-white', initial: 'G' },
-      'google.com': { color: 'bg-[#4285F4] text-white', initial: 'G' },
-      'apple.com': { color: 'bg-black text-white', initial: 'A' },
-      'microsoft.com': { color: 'bg-[#00A4EF] text-white', initial: 'M' },
-      'slack.com': { color: 'bg-[#4A154B] text-white', initial: 'S' },
-      'dropbox.com': { color: 'bg-[#0061FF] text-white', initial: 'D' },
-      'zoom.us': { color: 'bg-[#2D8CFF] text-white', initial: 'Z' },
-      'salesforce.com': { color: 'bg-[#00A1E0] text-white', initial: 'S' },
-      'notion.so': { color: 'bg-black text-white', initial: 'N' },
-      'trello.com': { color: 'bg-[#0079BF] text-white', initial: 'T' },
-      'shopify.com': { color: 'bg-[#7AB55C] text-white', initial: 'S' },
-    };
-    
-    // Check domain
-    if (brands[domain]) {
-      return brands[domain];
-    }
-    
-    // Check name for brand keywords
-    for (const [key, value] of Object.entries(brands)) {
-      const brandName = key.split('.')[0];
-      if (nameLower.includes(brandName)) {
-        return value;
-      }
-    }
-    
-    return null;
-  };
-
-  return (
-    <div
-      onClick={() => onSelect(message)}
-      className={cn(
-        "px-4 py-3 border-b border-border cursor-pointer transition-colors hover:bg-muted/30",
-        isSelected && "bg-muted/50",
-        message.isUnread && "bg-muted/20"
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <input
-          type="checkbox"
-          checked={isCheckboxSelected}
-          onChange={(e) => {
-            e.stopPropagation();
-            onToggleCheckbox(message.id);
-          }}
-          className="mt-3 h-4 w-4 rounded border-border"
-        />
-        <div className="flex items-start gap-3 flex-1">
-          <Avatar className="h-10 w-10 flex-shrink-0">
-            <AvatarFallback className={cn(
-              "text-sm font-semibold",
-              getBrandInfo(message.from.email, message.from.name)?.color || "bg-primary/10 text-primary"
-            )}>
-              {getBrandInfo(message.from.email, message.from.name)?.initial || getInitials(message.from.name)}
-            </AvatarFallback>
-          </Avatar>
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
-              <span className={cn(
-                "text-sm truncate",
-                message.isUnread && "font-semibold"
-              )}>
-                {message.from.name}
-              </span>
-              <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                {formatDate(message.date)}
-              </span>
-            </div>
-            
-            <div className={cn(
-              "text-sm truncate mb-1",
-              message.isUnread && "font-medium"
-            )}>
-              {message.subject}
-            </div>
-            
-            <div className="text-xs text-muted-foreground truncate">
-              {message.preview}
-            </div>
-            
-            <div className="flex items-center gap-2 mt-1">
-              {message.isFlagged && <Star className="h-3 w-3 fill-accent text-accent" />}
-              {message.hasAttachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
