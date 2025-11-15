@@ -650,6 +650,7 @@ const MessageItem = ({
 
   return (
     <div
+      onClick={() => onSelect(message)}
       className={cn(
         "px-4 py-3 border-b border-border cursor-pointer transition-colors hover:bg-muted/30",
         isSelected && "bg-muted/50",
@@ -666,7 +667,7 @@ const MessageItem = ({
           }}
           className="mt-3 h-4 w-4 rounded border-border"
         />
-        <div onClick={() => onSelect(message)} className="flex items-start gap-3 flex-1">
+        <div className="flex items-start gap-3 flex-1">
           <Avatar className="h-10 w-10 flex-shrink-0">
             <AvatarFallback className={cn(
               "text-sm font-semibold",
