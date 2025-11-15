@@ -329,7 +329,6 @@ serve(async (req) => {
           .split(",")
           .map(email => email.trim().match(/<(.+)>/)?.[1] || email.trim())
           .filter(Boolean);
-
         // Check for attachments
         let hasAttachments = false;
         let attachmentCount = 0;
