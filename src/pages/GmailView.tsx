@@ -110,12 +110,14 @@ const GmailView = () => {
 
   const initiateGmailOAuth = async () => {
     try {
+      const redirectUri = `${window.location.origin}/dashboard/gmail/${accountId || ''}`;
       const {
         data,
         error
       } = await supabase.functions.invoke('gmail-oauth', {
         body: {
-          initiateOAuth: true
+          initiateOAuth: true,
+          redirectUri
         }
       });
       if (error) throw error;
