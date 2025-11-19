@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import debounce from "lodash.debounce";
 import throttle from "lodash.throttle";
 import { useSearchParams } from "react-router-dom";
-import { FixedSizeList as List } from 'react-window';
+import { Virtuoso } from 'react-virtuoso';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -526,38 +526,27 @@ const MessageList = ({
             </div>
           </div>
         ) : (
-          <List
-            height={typeof window !== 'undefined' ? window.innerHeight - 200 : 600}
-            itemCount={filteredMessages.length}
-            itemSize={92}
-            width="100%"
-            onScroll={({ scrollOffset }) => {
-              // Trigger load more when near bottom
-              const totalHeight = filteredMessages.length * 92;
-              const visibleHeight = typeof window !== 'undefined' ? window.innerHeight - 200 : 600;
-              const scrollPercentage = scrollOffset / (totalHeight - visibleHeight);
-
-              if (scrollPercentage > 0.8 && hasMore && !isLoadingMore && !isLoading) {
+          <Virtuoso
+            style={{ height: '100%' }}
+            data={filteredMessages}
+            endReached={() => {
+              if (hasMore && !isLoadingMore && !isLoading) {
                 loadMoreMessages();
               }
             }}
-          >
-            {({ index, style }) => {
-              const message = filteredMessages[index];
-              return (
-                <div style={style}>
-                  <MessageItem
-                    key={message.id}
-                    message={message}
-                    isSelected={selectedMessage?.id === message.id}
-                    onSelect={onSelectMessage}
-                    isCheckboxSelected={selectedIds.has(message.id)}
-                    onToggleCheckbox={handleToggleSelect}
-                  />
-                </div>
-              );
-            }}
-          </List>
+            itemContent={(index, message) => (
+              <div className="px-2 py-1">
+                <MessageItem
+                  key={message.id}
+                  message={message}
+                  isSelected={selectedMessage?.id === message.id}
+                  onSelect={onSelectMessage}
+                  isCheckboxSelected={selectedIds.has(message.id)}
+                  onToggleCheckbox={handleToggleSelect}
+                />
+              </div>
+            )}
+          />
         )}
         {isLoadingMore && (
           <div className="p-4 flex justify-center bg-background border-t">
