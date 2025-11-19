@@ -118,7 +118,14 @@ const MessageList = ({
         setSearchParams({ page: '1' });
         return;
       }
-      
+
+      console.log('[MessageList] Fetching messages...', {
+        selectedAccount: selectedAccount?.email,
+        isUltimateInbox,
+        provider,
+        mailboxView
+      });
+
       try {
         let query = supabase
           .from('cached_messages')
@@ -172,8 +179,14 @@ const MessageList = ({
         const { data, error } = await query
           .order('received_at', { ascending: false })
           .range(offset, offset + MESSAGES_PER_PAGE - 1);
-        
+
         if (error) throw error;
+
+        console.log('[MessageList] Fetched messages:', {
+          count: data?.length || 0,
+          hasMore: (data?.length || 0) === MESSAGES_PER_PAGE
+        });
+
         const mapped: Message[] = (data || []).map((m: any) => ({
           id: m.id,
           accountId: m.account_id,
@@ -191,7 +204,7 @@ const MessageList = ({
         setMessages(mapped);
         setHasMore(data?.length === MESSAGES_PER_PAGE);
       } catch (err) {
-        console.error('Load messages error:', err);
+        console.error('[MessageList] Load messages error:', err);
       } finally {
         setIsLoading(false);
       }
@@ -268,12 +281,31 @@ const MessageList = ({
     };
   }, [selectedAccount, refreshTrigger, isUltimateInbox, mailboxView, provider, page, offset]);
 
-  const loadMoreMessages = async () => {
+  const loadMoreMessages = useCallback(() => {
     if (!hasMore || isLoading || isLoadingMore) return;
-    
+
     // PERFORMANCE: Update page in URL to persist pagination state
     setSearchParams({ page: String(page + 1) });
-  };
+  }, [hasMore, isLoading, isLoadingMore, page, setSearchParams]);
+
+  // Memoized callbacks for Virtuoso to prevent re-renders
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !isLoadingMore && !isLoading) {
+      loadMoreMessages();
+    }
+  }, [hasMore, isLoadingMore, isLoading, loadMoreMessages]);
+
+  const renderItem = useCallback((index: number, message: Message) => (
+    <div className="px-2 py-1" key={message.id}>
+      <MessageItem
+        message={message}
+        isSelected={selectedMessage?.id === message.id}
+        onSelect={onSelectMessage}
+        isCheckboxSelected={selectedIds.has(message.id)}
+        onToggleCheckbox={handleToggleSelect}
+      />
+    </div>
+  ), [selectedMessage, onSelectMessage, selectedIds, handleToggleSelect]);
 
 
   // Memoize filtered messages to prevent unnecessary recalculations
@@ -518,34 +550,38 @@ const MessageList = ({
           <MessageListSkeleton />
         ) : filteredMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-center p-8">
-            <div>
-              <Inbox className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                {messages.length === 0 ? "No messages yet. Click 'Sync Now' to fetch emails." : "No messages match your filters"}
+            <div className="max-w-md">
+              <Inbox className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">
+                {messages.length === 0 ? "No messages yet" : "No messages match your filters"}
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {messages.length === 0
+                  ? "Click the 'Sync Now' button in the sidebar to fetch your emails from this account."
+                  : "Try adjusting your search or filter settings."}
               </p>
+              {messages.length === 0 && selectedAccount && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const event = new CustomEvent('trigger-sync');
+                    window.dispatchEvent(event);
+                  }}
+                  className="mt-2"
+                >
+                  <RefreshCcw className="h-4 w-4 mr-2" />
+                  Sync Now
+                </Button>
+              )}
             </div>
           </div>
         ) : (
           <Virtuoso
-            style={{ height: '100%' }}
+            style={{ height: '100%', width: '100%' }}
             data={filteredMessages}
-            endReached={() => {
-              if (hasMore && !isLoadingMore && !isLoading) {
-                loadMoreMessages();
-              }
-            }}
-            itemContent={(index, message) => (
-              <div className="px-2 py-1">
-                <MessageItem
-                  key={message.id}
-                  message={message}
-                  isSelected={selectedMessage?.id === message.id}
-                  onSelect={onSelectMessage}
-                  isCheckboxSelected={selectedIds.has(message.id)}
-                  onToggleCheckbox={handleToggleSelect}
-                />
-              </div>
-            )}
+            endReached={handleEndReached}
+            itemContent={renderItem}
+            overscan={200}
           />
         )}
         {isLoadingMore && (
