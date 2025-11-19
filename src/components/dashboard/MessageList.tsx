@@ -268,9 +268,65 @@ const MessageList = ({
 
   const loadMoreMessages = async () => {
     if (!hasMore || isLoading || isLoadingMore) return;
-    
-    // PERFORMANCE: Update page in URL to persist pagination state
-    setSearchParams({ page: String(page + 1) });
+
+    setIsLoadingMore(true);
+    try {
+      let query = supabase
+        .from('cached_messages')
+        .select('id, account_id, thread_id, sender_name, sender_email, subject, snippet, received_at, is_read, is_starred, has_attachments, labels, message_id');
+
+      // If not ultimate inbox, filter by selected account
+      if (!isUltimateInbox && selectedAccount) {
+        query = query.eq('account_id', selectedAccount.id);
+      } else if (!isUltimateInbox && !selectedAccount) {
+        setIsLoadingMore(false);
+        return;
+      }
+
+      // Filter by mailbox view
+      if (mailboxView === "sent") {
+        query = query.contains("labels", ["SENT"]);
+      } else {
+        query = query.contains("labels", ["INBOX"]);
+      }
+
+      // Filter by provider if specified
+      if (provider) {
+        query = query.eq('provider', provider);
+      }
+
+      const nextOffset = page * MESSAGES_PER_PAGE;
+      const { data, error } = await query
+        .order('received_at', { ascending: false })
+        .range(nextOffset, nextOffset + MESSAGES_PER_PAGE - 1);
+
+      if (error) throw error;
+
+      const mapped: Message[] = (data || []).map((m: any) => ({
+        id: m.id,
+        accountId: m.account_id,
+        threadId: m.thread_id || '',
+        from: { name: m.sender_name || m.sender_email, email: m.sender_email },
+        subject: m.subject || '(no subject)',
+        preview: m.snippet || '',
+        date: m.received_at,
+        isUnread: !m.is_read,
+        isFlagged: m.is_starred,
+        hasAttachments: m.has_attachments,
+        labels: m.labels || [],
+        messageId: m.message_id,
+      }));
+
+      setMessages(prev => [...prev, ...mapped]);
+      setHasMore(data?.length === MESSAGES_PER_PAGE);
+
+      // Update page in URL to persist pagination state
+      setSearchParams({ page: String(page + 1) });
+    } catch (err) {
+      console.error('Load more messages error:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
   };
 
 

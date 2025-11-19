@@ -12,6 +12,8 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
+  const [renderError, setRenderError] = useState(false);
+  const [showTextVersion, setShowTextVersion] = useState(false);
 
   useEffect(() => {
     if (!iframeRef.current) return;
@@ -21,6 +23,7 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
     if (!iframeDoc) return;
 
     setLoading(true);
+    setRenderError(false);
 
     // Sanitize HTML first, THEN fix encoding issues
     let processedHtml = htmlContent || "";
@@ -63,6 +66,12 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
         .replace(/Ã©/g, "é")
         .replace(/Ã¨/g, "è")
         .replace(/Ã /g, "à");
+
+      // Decode HTML entities that may have been double-encoded
+      // Create a temporary div to decode entities safely (already sanitized by DOMPurify)
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = cleanHtml;
+      cleanHtml = tempDiv.innerHTML;
 
       // Determine theme colors
       const isDark = theme === "dark";
@@ -196,6 +205,26 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
       iframeDoc.write(iframeContent);
       iframeDoc.close();
 
+      // Check if HTML content is mostly empty (less than 50 characters of text)
+      const textContent = iframeDoc.body.textContent || "";
+      const trimmedText = textContent.trim();
+      if (trimmedText.length < 50) {
+        console.warn("HTML content appears empty or minimal, may need to show text fallback");
+        // Don't set renderError here, let the user see what's there
+      }
+
+      // Force all links to open in new tab
+      const links = iframeDoc.querySelectorAll("a");
+      links.forEach((link) => {
+        link.setAttribute("target", "_blank");
+        link.setAttribute("rel", "noopener noreferrer");
+        // Prevent default and open in parent window (which opens new tab due to sandbox)
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          window.open(link.href, "_blank", "noopener,noreferrer");
+        });
+      });
+
       // Auto-resize iframe to content height
       const resizeIframe = () => {
         try {
@@ -305,15 +334,42 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
     );
   }
 
+  // Show text version if user toggled or if HTML failed
+  if ((showTextVersion || renderError) && textContent) {
+    return (
+      <div className={`${className}`}>
+        {htmlContent && (
+          <button
+            onClick={() => setShowTextVersion(false)}
+            className="mb-4 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+          >
+            ← Show HTML version
+          </button>
+        )}
+        <pre className="whitespace-pre-wrap text-sm text-foreground font-sans break-words">
+          {textContent}
+        </pre>
+      </div>
+    );
+  }
+
   return (
     <div className={`relative w-full ${className}`}>
       {loading && (
         <div className="text-sm text-muted-foreground mb-4">Loading message…</div>
       )}
+      {!loading && textContent && (
+        <button
+          onClick={() => setShowTextVersion(true)}
+          className="mb-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+        >
+          Show text version
+        </button>
+      )}
       <iframe
         ref={iframeRef}
         title="Email content"
-        sandbox="allow-same-origin"
+        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         className="w-full border-0 overflow-hidden"
         style={{
           minHeight: "200px",
