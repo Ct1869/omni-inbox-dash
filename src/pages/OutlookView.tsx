@@ -5,13 +5,11 @@ import MessageList from "@/components/dashboard/MessageList";
 import MessageDetail from "@/components/dashboard/MessageDetail";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import ComposeDialog from "@/components/dashboard/ComposeDialog";
-import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { Menu, ArrowLeft, Mail } from "lucide-react";
 import type { Account, Message } from "@/pages/Dashboard";
 import ErrorBoundary, { CompactErrorFallback } from "@/components/ErrorBoundary";
 
@@ -27,10 +25,6 @@ const OutlookView = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [mailboxView, setMailboxView] = useState<"inbox" | "sent">("inbox");
-
-  // Mobile state management
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isMobileView, setIsMobileView] = useState(false);
 
   const isOnline = useOnlineStatus();
   
@@ -89,24 +83,6 @@ const OutlookView = () => {
 
     loadAccount();
   }, [accountId, navigate, refreshTrigger]);
-
-  // Mobile resize listener
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobileView(window.innerWidth < 1024); // lg breakpoint
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Auto-close sidebar when message is selected on mobile
-  useEffect(() => {
-    if (isMobileView && selectedMessage) {
-      setIsMobileSidebarOpen(false);
-    }
-  }, [selectedMessage, isMobileView]);
 
   const initiateGmailOAuth = async () => {
     // Not needed in Outlook view, but keep for sidebar consistency
@@ -168,55 +144,24 @@ const OutlookView = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background animate-fade-in">
-      {/* Mobile overlay backdrop */}
-      {isMobileView && isMobileSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsMobileSidebarOpen(false)}
+      <ErrorBoundary 
+        fallback={<CompactErrorFallback title="Sidebar Error" message="Failed to load accounts" />}
+        showReload={false}
+      >
+        <AccountsSidebar
+          selectedAccount={selectedAccount}
+          onSelectAccount={handleSelectAccount}
+          onConnectGmail={initiateGmailOAuth}
+          onConnectOutlook={initiateOutlookOAuth}
+          onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+          onCompose={() => setIsComposeOpen(true)}
+          onSyncAll={handleSyncNow}
+          refreshTrigger={refreshTrigger}
+          provider="outlook"
         />
-      )}
-
-      {/* Sidebar with mobile slide-in */}
-      <div className={cn(
-        "fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto transition-transform duration-300 lg:translate-x-0",
-        isMobileView && !isMobileSidebarOpen && "-translate-x-full"
-      )}>
-        <ErrorBoundary
-          fallback={<CompactErrorFallback title="Sidebar Error" message="Failed to load accounts" />}
-          showReload={false}
-        >
-          <AccountsSidebar
-            selectedAccount={selectedAccount}
-            onSelectAccount={handleSelectAccount}
-            onConnectGmail={initiateGmailOAuth}
-            onConnectOutlook={initiateOutlookOAuth}
-            onRefresh={() => setRefreshTrigger(prev => prev + 1)}
-            onCompose={() => setIsComposeOpen(true)}
-            onSyncAll={handleSyncNow}
-            refreshTrigger={refreshTrigger}
-            provider="outlook"
-          />
-        </ErrorBoundary>
-      </div>
-
-      {/* Main content area */}
+      </ErrorBoundary>
+      
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile header with hamburger */}
-        {isMobileView && (
-          <div className="flex items-center gap-2 p-4 border-b lg:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <h1 className="text-lg font-semibold">
-              {selectedAccount?.name || 'Outlook Inbox'}
-            </h1>
-          </div>
-        )}
-
         <DashboardHeader
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -282,42 +227,23 @@ const OutlookView = () => {
           </div>
 
           <div className={cn(
-            "flex-1 overflow-hidden flex flex-col",
-            !selectedMessage && "hidden lg:flex"
+            "flex-1 overflow-hidden",
+            !selectedMessage && "hidden lg:block"
           )}>
-            {/* Mobile back button */}
-            {isMobileView && selectedMessage && (
-              <div className="flex items-center gap-2 p-4 border-b lg:hidden">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSelectedMessage(null)}
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <Mail className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium truncate">
-                  {selectedMessage.subject || '(No Subject)'}
-                </span>
-              </div>
-            )}
-
-            <div className="flex-1 overflow-hidden">
-              <ErrorBoundary
-                fallback={<CompactErrorFallback title="Message Details Error" message="Failed to load message details" />}
-                showReload={false}
-              >
-                <MessageDetail
-                  message={selectedMessage}
-                  accountId={selectedAccount?.id}
-                  provider="outlook"
-                  onMessageDeleted={() => {
-                    setSelectedMessage(null);
-                    setRefreshTrigger(prev => prev + 1);
-                  }}
-                />
-              </ErrorBoundary>
-            </div>
+            <ErrorBoundary 
+              fallback={<CompactErrorFallback title="Message Details Error" message="Failed to load message details" />}
+              showReload={false}
+            >
+              <MessageDetail 
+                message={selectedMessage} 
+                accountId={selectedAccount?.id}
+                provider="outlook"
+                onMessageDeleted={() => {
+                  setSelectedMessage(null);
+                  setRefreshTrigger(prev => prev + 1);
+                }}
+              />
+            </ErrorBoundary>
           </div>
         </div>
       </div>

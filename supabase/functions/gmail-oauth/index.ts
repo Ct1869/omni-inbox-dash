@@ -17,40 +17,8 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { code, redirectUri, initiateOAuth } = await req.json();
+    const { code, redirectUri } = await req.json();
     
-    const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
-    const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
-
-    // Handle OAuth initiation (generate auth URL)
-    if (initiateOAuth || (!code && redirectUri)) {
-      if (!redirectUri) {
-        throw new Error("Redirect URI is required");
-      }
-
-      const scopes = [
-        "https://www.googleapis.com/auth/gmail.modify",
-        "https://www.googleapis.com/auth/gmail.send",
-        "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/userinfo.profile",
-      ];
-
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID || "",
-        redirect_uri: redirectUri,
-        response_type: "code",
-        scope: scopes.join(" "),
-        access_type: "offline",
-        prompt: "consent",
-      })}`;
-
-      return new Response(
-        JSON.stringify({ authUrl }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Handle OAuth callback (exchange code for tokens)
     if (!code) {
       throw new Error("Authorization code is required");
     }
@@ -58,6 +26,9 @@ serve(async (req) => {
     if (!redirectUri) {
       throw new Error("Redirect URI is required");
     }
+
+    const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+    const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
 
     // Exchange code for tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {

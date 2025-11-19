@@ -55,64 +55,21 @@ async function refreshAccessToken(refreshToken: string) {
   return await response.json();
 }
 
-// Rate limiter class to prevent hitting API quotas
-class RateLimiter {
-  private queue: (() => Promise<any>)[] = [];
-  private running = 0;
-  private maxConcurrent: number;
-  private minDelay: number;
-
-  constructor(maxConcurrent: number, minDelayMs: number) {
-    this.maxConcurrent = maxConcurrent;
-    this.minDelay = minDelayMs;
-  }
-
-  async execute<T>(fn: () => Promise<T>): Promise<T> {
-    while (this.running >= this.maxConcurrent) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-
-    this.running++;
-    try {
-      const result = await fn();
-      await new Promise(resolve => setTimeout(resolve, this.minDelay));
-      return result;
-    } finally {
-      this.running--;
-    }
-  }
-}
-
-// Batch fetch message details with rate limiting
-// Gmail API quota: 250 units/second per user (1 message fetch = 5 units = 50 messages/sec max)
-// Using 5 concurrent requests with 200ms delay = ~25 msg/sec to stay well under quota
+// Batch fetch message details using parallel requests
 async function batchFetchMessages(messageIds: string[], accessToken: string) {
-  const limiter = new RateLimiter(5, 200); // 5 concurrent, 200ms delay = ~25 msg/sec
+  const batchSize = 10; // Process 10 messages in parallel to avoid rate limits
   const allMessages = [];
 
-  console.log(`Rate-limited batch fetch starting for ${messageIds.length} messages...`);
-
-  for (const id of messageIds) {
-    const message = await limiter.execute(async () => {
-      const response = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      if (!response.ok) {
-        console.error(`Failed to fetch message ${id}: ${response.status}`);
-        return null;
-      }
-      return response.json();
-    });
-
-    if (message) {
-      allMessages.push(message);
-    }
-
-    // Log progress every 50 messages
-    if (allMessages.length % 50 === 0) {
-      console.log(`Fetched ${allMessages.length}/${messageIds.length} messages...`);
-    }
+  for (let i = 0; i < messageIds.length; i += batchSize) {
+    const batch = messageIds.slice(i, i + batchSize);
+    const promises = batch.map(id =>
+      fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }).then(res => res.ok ? res.json() : null)
+    );
+    
+    const results = await Promise.all(promises);
+    allMessages.push(...results.filter(Boolean));
   }
 
   return allMessages;
@@ -372,6 +329,7 @@ serve(async (req) => {
           .split(",")
           .map(email => email.trim().match(/<(.+)>/)?.[1] || email.trim())
           .filter(Boolean);
+
         // Check for attachments
         let hasAttachments = false;
         let attachmentCount = 0;
