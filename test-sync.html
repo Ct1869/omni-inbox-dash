@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Sync Functionality</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; max-width: 800px; margin: 0 auto; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    .success { color: green; }
+    .error { color: red; }
+    .info { color: blue; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    #log { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Test Sync Functionality</h1>
+  
+  <div>
+    <h2>Step 1: Check Authentication</h2>
+    <button onclick="checkAuth()">Check Auth Status</button>
+    <div id="auth-status"></div>
+  </div>
+  
+  <div>
+    <h2>Step 2: Check Accounts</h2>
+    <button onclick="checkAccounts()">Load Accounts</button>
+    <div id="accounts-status"></div>
+  </div>
+  
+  <div>
+    <h2>Step 3: Test Sync</h2>
+    <input type="text" id="account-id" placeholder="Enter Account ID" style="width: 300px;">
+    <button onclick="testSync()">Test Sync</button>
+    <div id="sync-status"></div>
+  </div>
+  
+  <div id="log"></div>
+  
+  <script>
+    const supabaseUrl = 'https://vntkvhmpnvnqxdprgvjk.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZudGt2aG1wbnZucXhkcHJndmprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NzYxOTksImV4cCI6MjA3ODU1MjE5OX0._piwgNuyHE1VAP8a4cv_NczqYyJs2lyStBkir-5jX58';
+    
+    const { createClient } = supabase;
+    const client = createClient(supabaseUrl, supabaseKey);
+    
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = type;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+    }
+    
+    async function checkAuth() {
+      const statusDiv = document.getElementById('auth-status');
+      statusDiv.innerHTML = '<p>Checking...</p>';
+      
+      try {
+        const { data: { session }, error } = await client.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (session) {
+          statusDiv.innerHTML = `
+            <p class="success">✅ Logged in as: ${session.user.email}</p>
+            <p>User ID: ${session.user.id}</p>
+            <pre>${JSON.stringify(session.user, null, 2)}</pre>
+          `;
+          log(`Authenticated as ${session.user.email}`, 'success');
+        } else {
+          statusDiv.innerHTML = '<p class="error">❌ Not logged in. Please log in first at http://localhost:8080/</p>';
+          log('Not authenticated', 'error');
+        }
+      } catch (err) {
+        statusDiv.innerHTML = `<p class="error">❌ Error: ${err.message}</p>`;
+        log(`Auth error: ${err.message}`, 'error');
+      }
+    }
+    
+    async function checkAccounts() {
+      const statusDiv = document.getElementById('accounts-status');
+      statusDiv.innerHTML = '<p>Loading accounts...</p>';
+      
+      try {
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) {
+          statusDiv.innerHTML = '<p class="error">❌ Please check auth first</p>';
+          return;
+        }
+        
+        const { data: accounts, error } = await client
+          .from('email_accounts')
+          .select('*');
+        
+        if (error) throw error;
+        
+        if (accounts && accounts.length > 0) {
+          statusDiv.innerHTML = `
+            <p class="success">✅ Found ${accounts.length} account(s):</p>
+            <pre>${JSON.stringify(accounts, null, 2)}</pre>
+          `;
+          log(`Found ${accounts.length} accounts`, 'success');
+          
+          // Auto-fill first account ID
+          document.getElementById('account-id').value = accounts[0].id;
+        } else {
+          statusDiv.innerHTML = '<p class="error">❌ No accounts found. Please connect a Gmail account first.</p>';
+          log('No accounts found', 'error');
+        }
+      } catch (err) {
+        statusDiv.innerHTML = `<p class="error">❌ Error: ${err.message}</p>`;
+        log(`Accounts error: ${err.message}`, 'error');
+      }
+    }
+    
+    async function testSync() {
+      const statusDiv = document.getElementById('sync-status');
+      const accountId = document.getElementById('account-id').value;
+      
+      if (!accountId) {
+        statusDiv.innerHTML = '<p class="error">❌ Please enter an account ID</p>';
+        return;
+      }
+      
+      statusDiv.innerHTML = '<p>Syncing...</p>';
+      log(`Starting sync for account ${accountId}...`);
+      
+      try {
+        const { data, error } = await client.functions.invoke('sync-messages', {
+          body: { accountId, maxMessages: 10 }
+        });
+        
+        if (error) throw error;
+        
+        statusDiv.innerHTML = `
+          <p class="success">✅ Sync completed!</p>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `;
+        log('Sync completed successfully', 'success');
+        
+        // Check messages
+        setTimeout(async () => {
+          const { data: messages } = await client
+            .from('cached_messages')
+            .select('id, subject, from')
+            .eq('account_id', accountId)
+            .limit(5);
+          
+          if (messages && messages.length > 0) {
+            statusDiv.innerHTML += `
+              <p class="success">✅ Found ${messages.length} messages:</p>
+              <pre>${JSON.stringify(messages, null, 2)}</pre>
+            `;
+            log(`Found ${messages.length} messages after sync`, 'success');
+          }
+        }, 2000);
+        
+      } catch (err) {
+        statusDiv.innerHTML = `<p class="error">❌ Sync failed: ${err.message}</p>`;
+        log(`Sync error: ${err.message}`, 'error');
+        console.error('Full error:', err);
+      }
+    }
+    
+    // Auto-check auth on load
+    window.onload = () => {
+      checkAuth();
+    };
+  </script>
+</body>
+</html>
+
