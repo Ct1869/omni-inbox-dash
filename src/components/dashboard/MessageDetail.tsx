@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Reply,
@@ -231,6 +232,30 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
             Select a message from the list to view its contents
           </p>
         </div>
+      </div>
+    );
+  }
+
+  // Loading skeleton
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col bg-background h-full overflow-hidden">
+        <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border flex-shrink-0">
+          <Skeleton className="h-7 w-3/4 mb-3" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-6 rounded-full" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        <ScrollArea className="flex-1 px-4 md:px-6 py-4">
+          <div className="space-y-4">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-32 w-full mt-4" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </ScrollArea>
       </div>
     );
   }

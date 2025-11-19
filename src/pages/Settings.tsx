@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { BulkAccountImport } from "@/components/dashboard/BulkAccountImport";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronRight, Home, Settings as SettingsIcon } from "lucide-react";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -27,6 +27,23 @@ const Settings = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto py-8 px-4">
+        {/* Breadcrumb Navigation */}
+        <nav className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
+          <button
+            onClick={() => navigate("/dashboard/gmail")}
+            className="flex items-center gap-1 hover:text-foreground transition-colors"
+          >
+            <Home className="h-4 w-4" />
+            <span>Dashboard</span>
+          </button>
+          <ChevronRight className="h-4 w-4" />
+          <div className="flex items-center gap-1 text-foreground font-medium">
+            <SettingsIcon className="h-4 w-4" />
+            <span>Settings</span>
+          </div>
+        </nav>
+
+        {/* Back Button (Alternative Navigation) */}
         <div className="mb-6">
           <Button
             variant="ghost"

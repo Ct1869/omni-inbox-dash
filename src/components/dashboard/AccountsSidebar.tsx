@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Inbox,
   Star,
@@ -18,7 +19,8 @@ import {
   Mail,
   RefreshCw,
   Bell,
-  Settings
+  Settings,
+  Search
 } from "lucide-react";
 import gmailIcon from "@/assets/gmail-icon.svg";
 import outlookIcon from "@/assets/outlook-icon.svg";
@@ -63,8 +65,9 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
   const [accountFilter, setAccountFilter] = useState<'all' | 'gmail' | 'outlook'>('all');
   const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(new Set());
   const [userEmail, setUserEmail] = useState<string>("user@email.com");
+  const [accountSearch, setAccountSearch] = useState<string>("");
   const userName = userEmail.split("@")[0];
-  
+
   const syncStatuses = useSyncStatus(accounts.map(a => a.id));
   
   // SECURITY: Use Supabase auth instead of localStorage
@@ -228,11 +231,20 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
   }, [refreshTrigger, provider]);
 
   const filteredAccounts = accounts.filter(account => {
-    // If provider prop is set, it's already filtered at fetch level
-    if (provider) return true;
-    // Otherwise use the accountFilter state
-    if (accountFilter === 'all') return true;
-    return account.provider === accountFilter;
+    // Apply provider filter
+    let matchesProvider = true;
+    if (provider) {
+      matchesProvider = true; // Already filtered at fetch level
+    } else if (accountFilter !== 'all') {
+      matchesProvider = account.provider === accountFilter;
+    }
+
+    // Apply search filter
+    const matchesSearch = accountSearch === "" ||
+      account.email.toLowerCase().includes(accountSearch.toLowerCase()) ||
+      account.name.toLowerCase().includes(accountSearch.toLowerCase());
+
+    return matchesProvider && matchesSearch;
   });
 
   const getInitials = (name: string) => {
@@ -442,6 +454,27 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
           <div className="text-xs font-semibold text-muted-foreground px-2 py-1 mb-1 mt-3">
             Email Accounts
           </div>
+
+          {/* Account Search */}
+          {accounts.length > 0 && (
+            <div className="px-2 mb-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search accounts..."
+                  value={accountSearch}
+                  onChange={(e) => setAccountSearch(e.target.value)}
+                  className="pl-9 h-9 text-sm"
+                />
+              </div>
+              {accountSearch && (
+                <p className="text-xs text-muted-foreground mt-1 px-1">
+                  Found {filteredAccounts.length} of {accounts.length} accounts
+                </p>
+              )}
+            </div>
+          )}
+
             <div className="space-y-0.5">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { composeEmailSchema, type ComposeEmailInput } from "@/lib/validation";
@@ -87,49 +88,62 @@ const ComposeDialog = ({ open, onOpenChange, accountId, accountEmail, provider =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-full max-w-2xl h-[90vh] flex flex-col p-0">
+        <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
           <DialogTitle>New Message</DialogTitle>
           <p className="text-sm text-muted-foreground">From: {accountEmail}</p>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="to">To</Label>
-            <Input
-              id="to"
-              type="email"
-              placeholder="recipient@example.com"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
+
+        <ScrollArea className="flex-1 px-6">
+          <div className="space-y-4 pb-4">
+            <div>
+              <Label htmlFor="to">To</Label>
+              <Input
+                id="to"
+                type="email"
+                placeholder="recipient@example.com"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="subject">Subject</Label>
+              <Input
+                id="subject"
+                placeholder="Email subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="body">Message</Label>
+              <Textarea
+                id="body"
+                placeholder="Type your message here..."
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                className="min-h-[200px] md:min-h-[300px] resize-none"
+              />
+            </div>
           </div>
-          <div>
-            <Label htmlFor="subject">Subject</Label>
-            <Input
-              id="subject"
-              placeholder="Email subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="body">Message</Label>
-            <Textarea
-              id="body"
-              placeholder="Type your message here..."
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              className="min-h-48 md:min-h-64"
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isSending}>
-              Cancel
-            </Button>
-            <Button onClick={handleSend} disabled={isSending}>
-              {isSending ? 'Sending...' : 'Send'}
-            </Button>
-          </div>
+        </ScrollArea>
+
+        <div className="flex-shrink-0 flex gap-2 px-6 py-4 border-t">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={isSending}
+            className="flex-1 sm:flex-none"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSend}
+            disabled={isSending}
+            className="flex-1 sm:flex-none"
+          >
+            {isSending ? 'Sending...' : 'Send'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

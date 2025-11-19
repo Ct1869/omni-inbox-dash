@@ -69,7 +69,7 @@ const MessageList = ({
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const MESSAGES_PER_PAGE = 50;
+  const MESSAGES_PER_PAGE = 100; // Increased from 50 to 100 for better performance with 16K emails
   const offset = (page - 1) * MESSAGES_PER_PAGE;
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   
