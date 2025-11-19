@@ -12,6 +12,7 @@ interface ImportResult {
   success: number;
   failed: number;
   errors: string[];
+  failedRows: { row: number; email: string; provider: string; error: string }[];
 }
 
 export function BulkAccountImport() {
@@ -120,6 +121,30 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
     }
   };
 
+  const exportFailedRows = () => {
+    if (!result || result.failedRows.length === 0) return;
+
+    const csvContent = [
+      'row,email,provider,error',
+      ...result.failedRows.map(row =>
+        `${row.row},"${row.email}","${row.provider}","${row.error.replace(/"/g, '""')}"`
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `failed_imports_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Export Complete',
+      description: `Exported ${result.failedRows.length} failed row(s)`,
+    });
+  };
+
   const handleImport = async () => {
     if (!csvFile) {
       toast({
@@ -159,6 +184,7 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
       let successCount = 0;
       let failedCount = 0;
       const errors: string[] = [];
+      const failedRows: { row: number; email: string; provider: string; error: string }[] = [];
       const totalAccounts = lines.length - 1; // Exclude header
 
       // Initialize progress
@@ -170,6 +196,7 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
         const batch = lines.slice(i, i + batchSize);
 
         await Promise.all(batch.map(async (line, batchIdx) => {
+          const rowNumber = i + batchIdx;
           try {
             const values = line.split(',').map(v => v.trim());
             const email = values[emailIdx];
@@ -179,11 +206,11 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
             const expiresAt = values[expiresAtIdx] || new Date(Date.now() + 3600000).toISOString();
 
             if (!email || !provider || !accessToken || !refreshToken) {
-              throw new Error(`Missing required fields in row ${i + batchIdx + 1}`);
+              throw new Error(`Missing required fields`);
             }
 
             if (provider !== 'gmail' && provider !== 'outlook') {
-              throw new Error(`Invalid provider "${provider}" in row ${i + batchIdx + 1}. Must be "gmail" or "outlook"`);
+              throw new Error(`Invalid provider "${provider}". Must be "gmail" or "outlook"`);
             }
 
             // Insert email account
@@ -200,7 +227,7 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
 
             if (accountError) {
               if (accountError.code === '23505') { // Unique constraint violation
-                throw new Error(`Account ${email} already exists`);
+                throw new Error(`Account already exists`);
               }
               throw accountError;
             }
@@ -221,7 +248,17 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
           } catch (error) {
             failedCount++;
             const errorMsg = error instanceof Error ? error.message : String(error);
-            errors.push(`Row ${i + batchIdx + 1}: ${errorMsg}`);
+            const values = line.split(',').map(v => v.trim());
+            const email = values[emailIdx] || 'unknown';
+            const provider = values[providerIdx] || 'unknown';
+
+            errors.push(`Row ${rowNumber + 1}: ${email} - ${errorMsg}`);
+            failedRows.push({
+              row: rowNumber + 1,
+              email,
+              provider,
+              error: errorMsg
+            });
           }
         }));
 
@@ -240,11 +277,11 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
         }
       }
 
-      setResult({ success: successCount, failed: failedCount, errors });
+      setResult({ success: successCount, failed: failedCount, errors, failedRows });
 
       toast({
         title: 'Import Complete',
-        description: `Successfully imported ${successCount} accounts. ${failedCount} failed.`,
+        description: `Successfully imported ${successCount} accounts. ${failedCount} failed.${failedCount > 0 ? ' Click "Export Failed Rows" to download.' : ''}`,
         variant: failedCount > 0 ? 'destructive' : 'default',
       });
 
@@ -358,21 +395,37 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
               <CheckCircle2 className="h-4 w-4" />
             )}
             <AlertDescription>
-              <div className="space-y-2">
-                <p className="font-semibold">
-                  Success: {result.success} | Failed: {result.failed}
-                </p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold">
+                    Success: {result.success} | Failed: {result.failed}
+                  </p>
+                  {result.failed > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={exportFailedRows}
+                      className="gap-2"
+                    >
+                      <Upload className="h-3 w-3" />
+                      Export Failed Rows
+                    </Button>
+                  )}
+                </div>
                 {result.errors.length > 0 && (
                   <div className="text-sm space-y-1">
-                    <p className="font-semibold">Errors:</p>
-                    <ul className="list-disc list-inside max-h-40 overflow-y-auto">
+                    <p className="font-semibold">Detailed Errors:</p>
+                    <ul className="list-disc list-inside max-h-40 overflow-y-auto space-y-0.5">
                       {result.errors.slice(0, 10).map((error, idx) => (
-                        <li key={idx}>{error}</li>
+                        <li key={idx} className="text-xs">{error}</li>
                       ))}
                       {result.errors.length > 10 && (
-                        <li>... and {result.errors.length - 10} more errors</li>
+                        <li className="text-xs font-medium">... and {result.errors.length - 10} more errors</li>
                       )}
                     </ul>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      💡 Tip: Click "Export Failed Rows" to download a CSV with all failed accounts and their errors.
+                    </p>
                   </div>
                 )}
               </div>

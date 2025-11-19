@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Inbox,
   Star,
@@ -20,9 +21,11 @@ import {
   RefreshCw,
   Bell,
   Settings,
-  Search
+  Search,
+  Keyboard
 } from "lucide-react";
 import gmailIcon from "@/assets/gmail-icon.svg";
+import KeyboardShortcutsDialog from "./KeyboardShortcutsDialog";
 import outlookIcon from "@/assets/outlook-icon.svg";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -66,6 +69,9 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
   const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(new Set());
   const [userEmail, setUserEmail] = useState<string>("user@email.com");
   const [accountSearch, setAccountSearch] = useState<string>("");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
+  const [isBulkSyncing, setIsBulkSyncing] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const userName = userEmail.split("@")[0];
 
   const syncStatuses = useSyncStatus(accounts.map(a => a.id));
@@ -155,14 +161,14 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
   const handleSetupWatches = async () => {
     setIsSettingUpWatches(true);
     toast.loading("Setting up push notifications...", { id: "setup-watches" });
-    
+
     try {
       // Setup Gmail watches
       const gmailAccounts = filteredAccounts.filter(a => a.provider === 'gmail');
       if (gmailAccounts.length > 0) {
         const { data: gmailData, error: gmailError } = await supabase.functions.invoke('setup-gmail-watches');
         if (gmailError) throw gmailError;
-        
+
         const gmailResults = gmailData?.results || [];
         gmailResults.forEach((result: any) => {
           if (!result.success) {
@@ -176,7 +182,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
       if (outlookAccounts.length > 0) {
         const { data: outlookData, error: outlookError } = await supabase.functions.invoke('setup-outlook-subscriptions');
         if (outlookError) throw outlookError;
-        
+
         const outlookResults = outlookData?.results || [];
         outlookResults.forEach((result: any) => {
           if (!result.success) {
@@ -192,6 +198,44 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
       toast.error(err.message || "Failed to setup push notifications", { id: "setup-watches" });
     } finally {
       setIsSettingUpWatches(false);
+    }
+  };
+
+  const handleBulkSync = async () => {
+    if (selectedAccountIds.size === 0) {
+      toast.error("No accounts selected");
+      return;
+    }
+
+    setIsBulkSyncing(true);
+    const selectedAccounts = accounts.filter(a => selectedAccountIds.has(a.id));
+    toast.info(`Syncing ${selectedAccounts.length} selected account(s)...`);
+
+    for (const account of selectedAccounts) {
+      await handleSyncAccount(account.id, account.provider || 'gmail');
+    }
+
+    setIsBulkSyncing(false);
+    toast.success(`Synced ${selectedAccounts.length} account(s)`);
+  };
+
+  const toggleAccountSelection = (accountId: string) => {
+    setSelectedAccountIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(accountId)) {
+        newSet.delete(accountId);
+      } else {
+        newSet.add(accountId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedAccountIds.size === filteredAccounts.length) {
+      setSelectedAccountIds(new Set());
+    } else {
+      setSelectedAccountIds(new Set(filteredAccounts.map(a => a.id)));
     }
   };
 
@@ -331,6 +375,21 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Settings & Bulk Import</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="min-h-[44px] min-w-[44px]"
+                  onClick={() => setShowKeyboardShortcuts(true)}
+                >
+                  <Keyboard className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Keyboard Shortcuts (?)</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
@@ -475,6 +534,44 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
             </div>
           )}
 
+          {/* Bulk Actions */}
+          {filteredAccounts.length > 0 && (
+            <div className="px-2 mb-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="select-all"
+                  checked={selectedAccountIds.size === filteredAccounts.length && filteredAccounts.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                />
+                <label htmlFor="select-all" className="text-xs text-muted-foreground cursor-pointer">
+                  Select all ({filteredAccounts.length})
+                </label>
+              </div>
+              {selectedAccountIds.size > 0 && (
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleBulkSync}
+                    disabled={isBulkSyncing}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    <RefreshCcw className={cn("h-3 w-3 mr-1", isBulkSyncing && "animate-spin")} />
+                    Sync ({selectedAccountIds.size})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedAccountIds(new Set())}
+                    className="h-8 text-xs"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
             <div className="space-y-0.5">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
@@ -537,6 +634,11 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                       key={account.id}
                       className="flex items-center gap-1 group"
                     >
+                      <Checkbox
+                        checked={selectedAccountIds.has(account.id)}
+                        onCheckedChange={() => toggleAccountSelection(account.id)}
+                        className="ml-2"
+                      />
                       <button
                         onClick={() => {
                           if (account.provider === 'gmail') {
@@ -673,6 +775,12 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
             </div>
         </div>
       </ScrollArea>
+
+      {/* Keyboard Shortcuts Dialog */}
+      <KeyboardShortcutsDialog
+        open={showKeyboardShortcuts}
+        onOpenChange={setShowKeyboardShortcuts}
+      />
     </aside>
   );
 };
