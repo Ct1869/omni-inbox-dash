@@ -121,6 +121,7 @@ const MessageList = ({
 
       console.log('[MessageList] Fetching messages...', {
         selectedAccount: selectedAccount?.email,
+        accountId: selectedAccount?.id,
         isUltimateInbox,
         provider,
         mailboxView
@@ -184,7 +185,8 @@ const MessageList = ({
 
         console.log('[MessageList] Fetched messages:', {
           count: data?.length || 0,
-          hasMore: (data?.length || 0) === MESSAGES_PER_PAGE
+          hasMore: (data?.length || 0) === MESSAGES_PER_PAGE,
+          firstMessage: data?.[0]?.subject
         });
 
         const mapped: Message[] = (data || []).map((m: any) => ({
