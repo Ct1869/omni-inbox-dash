@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -17,13 +18,16 @@ export function BulkAccountImport() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [progress, setProgress] = useState({ current: 0, total: 0, success: 0, failed: 0 });
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isValidating, setIsValidating] = useState(false);
   const { toast } = useToast();
 
   const downloadTemplate = () => {
     const template = `email,provider,access_token,refresh_token,expires_at
 example1@gmail.com,gmail,ya29.a0...,1//0g...,2024-12-31T23:59:59Z
 example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
-    
+
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -31,6 +35,89 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
     a.download = 'bulk_accounts_template.csv';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const validateCSV = async (file: File) => {
+    setIsValidating(true);
+    setValidationErrors([]);
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      const errors: string[] = [];
+
+      if (lines.length < 2) {
+        errors.push('CSV file is empty or has no data rows');
+        setValidationErrors(errors);
+        setIsValidating(false);
+        return;
+      }
+
+      // Check header
+      const header = lines[0].toLowerCase().split(',').map(h => h.trim());
+      const requiredColumns = ['email', 'provider', 'access_token', 'refresh_token'];
+      const missingColumns = requiredColumns.filter(col => !header.includes(col));
+
+      if (missingColumns.length > 0) {
+        errors.push(`Missing required columns: ${missingColumns.join(', ')}`);
+      }
+
+      // Validate first 10 rows for quick feedback
+      const emailIdx = header.indexOf('email');
+      const providerIdx = header.indexOf('provider');
+      const accessTokenIdx = header.indexOf('access_token');
+      const refreshTokenIdx = header.indexOf('refresh_token');
+
+      for (let i = 1; i < Math.min(lines.length, 11); i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+
+        if (values.length !== header.length) {
+          errors.push(`Row ${i + 1}: Column count mismatch (expected ${header.length}, got ${values.length})`);
+          continue;
+        }
+
+        if (emailIdx >= 0 && !values[emailIdx]) {
+          errors.push(`Row ${i + 1}: Missing email`);
+        }
+
+        if (providerIdx >= 0 && values[providerIdx] && !['gmail', 'outlook'].includes(values[providerIdx].toLowerCase())) {
+          errors.push(`Row ${i + 1}: Invalid provider "${values[providerIdx]}" (must be "gmail" or "outlook")`);
+        }
+
+        if (accessTokenIdx >= 0 && !values[accessTokenIdx]) {
+          errors.push(`Row ${i + 1}: Missing access_token`);
+        }
+
+        if (refreshTokenIdx >= 0 && !values[refreshTokenIdx]) {
+          errors.push(`Row ${i + 1}: Missing refresh_token`);
+        }
+      }
+
+      setValidationErrors(errors);
+
+      if (errors.length > 0) {
+        toast({
+          title: 'CSV Validation Failed',
+          description: `Found ${errors.length} error(s). Please fix and re-upload.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'CSV Valid ✓',
+          description: `Ready to import ${lines.length - 1} account(s)`,
+        });
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      setValidationErrors([`Failed to read CSV: ${errorMsg}`]);
+      toast({
+        title: 'Validation Error',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   const handleImport = async () => {
@@ -49,7 +136,7 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
     try {
       const text = await csvFile.text();
       const lines = text.split('\n').filter(line => line.trim());
-      
+
       if (lines.length < 2) {
         throw new Error('CSV file is empty or has no data rows');
       }
@@ -72,12 +159,16 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
       let successCount = 0;
       let failedCount = 0;
       const errors: string[] = [];
+      const totalAccounts = lines.length - 1; // Exclude header
+
+      // Initialize progress
+      setProgress({ current: 0, total: totalAccounts, success: 0, failed: 0 });
 
       // Process accounts in batches of 10
       const batchSize = 10;
       for (let i = 1; i < lines.length; i += batchSize) {
         const batch = lines.slice(i, i + batchSize);
-        
+
         await Promise.all(batch.map(async (line, batchIdx) => {
           try {
             const values = line.split(',').map(v => v.trim());
@@ -134,6 +225,15 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
           }
         }));
 
+        // Update progress after each batch
+        const currentProgress = Math.min(i + batchSize - 1, totalAccounts);
+        setProgress({
+          current: currentProgress,
+          total: totalAccounts,
+          success: successCount,
+          failed: failedCount
+        });
+
         // Rate limiting between batches
         if (i + batchSize < lines.length) {
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -179,18 +279,76 @@ example2@outlook.com,outlook,EwB4A8...,M.C5...,2024-12-31T23:59:59Z`;
           <Input
             type="file"
             accept=".csv"
-            onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-            disabled={importing}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setCsvFile(file);
+              setResult(null);
+              if (file) {
+                validateCSV(file);
+              } else {
+                setValidationErrors([]);
+              }
+            }}
+            disabled={importing || isValidating}
           />
-          <Button 
-            onClick={handleImport} 
-            disabled={!csvFile || importing}
+          {isValidating && (
+            <p className="text-sm text-muted-foreground">Validating CSV...</p>
+          )}
+          <Button
+            onClick={handleImport}
+            disabled={!csvFile || importing || validationErrors.length > 0 || isValidating}
             className="w-full gap-2"
           >
             <Upload className="h-4 w-4" />
             {importing ? 'Importing...' : 'Import Accounts'}
           </Button>
         </div>
+
+        {/* Validation errors */}
+        {validationErrors.length > 0 && !importing && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-2">
+                <p className="font-semibold">CSV Validation Errors ({validationErrors.length}):</p>
+                <ul className="list-disc list-inside text-sm space-y-1 max-h-40 overflow-y-auto">
+                  {validationErrors.map((error, idx) => (
+                    <li key={idx}>{error}</li>
+                  ))}
+                </ul>
+                <p className="text-xs mt-2">Please fix these errors and re-upload the CSV file.</p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Progress indicator during import */}
+        {importing && progress.total > 0 && (
+          <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="font-medium">Import Progress</span>
+                <span className="text-muted-foreground">
+                  {progress.current} of {progress.total} accounts
+                </span>
+              </div>
+              <Progress value={(progress.current / progress.total) * 100} className="h-2" />
+            </div>
+            <div className="flex gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <span className="text-green-600 font-medium">{progress.success} succeeded</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span className="text-red-600 font-medium">{progress.failed} failed</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Processing in batches of 10 accounts... This may take several minutes for large imports.
+            </p>
+          </div>
+        )}
 
         {result && (
           <Alert variant={result.failed > 0 ? 'destructive' : 'default'}>

@@ -322,8 +322,19 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
             </Tooltip>
           </TooltipProvider>
         </div>
-        <Button 
-          variant="default" 
+
+        {/* Prominent Settings Button */}
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 mb-2 border-primary/20 hover:bg-primary/5"
+          onClick={() => navigate('/settings')}
+        >
+          <Settings className="h-4 w-4" />
+          Settings & Bulk Import
+        </Button>
+
+        <Button
+          variant="default"
           className="w-full justify-start gap-2 mb-2"
           onClick={onCompose}
           disabled={!selectedAccount}
@@ -436,6 +447,49 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                 Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="h-12 bg-muted/20 animate-pulse rounded-md mx-1" />
                 ))
+              ) : filteredAccounts.length === 0 ? (
+                // Empty state when no accounts
+                <div className="flex flex-col items-center justify-center p-8 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center">
+                    <Inbox className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-base font-semibold">No Email Accounts Connected</h3>
+                    <p className="text-sm text-muted-foreground max-w-[200px]">
+                      Connect your first email account to get started
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 w-full">
+                    <Button
+                      onClick={onConnectGmail}
+                      className="w-full gap-2"
+                      variant="default"
+                    >
+                      <img src={gmailIcon} className="h-4 w-4" alt="Gmail" />
+                      Connect Gmail
+                    </Button>
+                    <Button
+                      onClick={onConnectOutlook}
+                      variant="outline"
+                      className="w-full gap-2"
+                    >
+                      <img src={outlookIcon} className="h-4 w-4" alt="Outlook" />
+                      Connect Outlook
+                    </Button>
+                  </div>
+                  <div className="pt-2">
+                    <p className="text-xs text-muted-foreground">
+                      Or use{" "}
+                      <button
+                        onClick={() => navigate('/settings')}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Bulk Import
+                      </button>
+                      {" "}for 800+ accounts
+                    </p>
+                  </div>
+                </div>
               ) : (
                 filteredAccounts.map((account) => {
                   const syncStatus = syncStatuses.get(account.id);
@@ -485,7 +539,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                         </div>
                         
                         <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
-                          {/* Sync status indicator */}
+                          {/* Sync status indicator with detailed tooltips */}
                           {isAccountSyncing && (
                             <TooltipProvider>
                               <Tooltip>
@@ -493,12 +547,20 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                                   <RefreshCcw className="h-3.5 w-3.5 text-blue-500 animate-spin" />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>Syncing... {syncStatus.messagesSynced} messages</p>
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Syncing...</p>
+                                    <p>{syncStatus.messagesSynced} messages synced</p>
+                                    {syncStatus.startedAt && (
+                                      <p className="text-muted-foreground">
+                                        Started: {new Date(syncStatus.startedAt).toLocaleTimeString()}
+                                      </p>
+                                    )}
+                                  </div>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          
+
                           {isSyncFailed && (
                             <TooltipProvider>
                               <Tooltip>
@@ -506,14 +568,39 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                                   <AlertCircle className="h-3.5 w-3.5 text-red-500" />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p className="max-w-xs">Sync failed: {syncStatus.errorMessage}</p>
+                                  <div className="text-xs space-y-1 max-w-xs">
+                                    <p className="font-semibold text-red-500">Sync Failed</p>
+                                    <p className="text-red-400">{syncStatus.errorMessage || 'Unknown error'}</p>
+                                    {syncStatus.completedAt && (
+                                      <p className="text-muted-foreground">
+                                        Failed at: {new Date(syncStatus.completedAt).toLocaleString()}
+                                      </p>
+                                    )}
+                                  </div>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          
-                          {isSyncCompleted && (
-                            <Check className="h-3.5 w-3.5 text-green-500 animate-fade-in" />
+
+                          {isSyncCompleted && !isAccountSyncing && !isSyncFailed && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Check className="h-3.5 w-3.5 text-green-500 animate-fade-in" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold text-green-500">Sync Completed</p>
+                                    <p>{syncStatus.messagesSynced} messages synced</p>
+                                    {syncStatus.completedAt && (
+                                      <p className="text-muted-foreground">
+                                        Last synced: {new Date(syncStatus.completedAt).toLocaleString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
 
                           {account.unreadCount > 0 && (

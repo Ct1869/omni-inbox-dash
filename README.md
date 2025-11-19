@@ -267,3 +267,275 @@ VITE_MICROSOFT_CLIENT_ID=<your_microsoft_client_id>
    - Register new application
    - Add redirect URI: `http://localhost:8080/auth/callback`
    - Scopes: `Mail.Read`, `Mail.Send`, `Mail.ReadWrite`, `offline_access`
+
+---
+
+## 📦 Bulk Account Import
+
+### How to Import 800 Accounts
+
+#### Step 1: Prepare CSV File
+
+Create a CSV file with this format:
+
+```csv
+email,provider,access_token,refresh_token,expires_at
+account1@gmail.com,gmail,ya29.a0...,1//0g...,2025-12-31T23:59:59Z
+account2@outlook.com,outlook,EwB4A8...,M.C5...,2025-12-31T23:59:59Z
+```
+
+**Columns:**
+- `email` - Email address
+- `provider` - Either `gmail` or `outlook`
+- `access_token` - OAuth access token
+- `refresh_token` - OAuth refresh token
+- `expires_at` - Token expiration (ISO 8601 format)
+
+#### Step 2: Validate Tokens (Optional)
+
+```bash
+node scripts/test-oauth-tokens.mjs your-accounts.csv
+```
+
+This tests the first 10 accounts to verify tokens are valid.
+
+#### Step 3: Import via UI
+
+1. Start dev server: `npm run dev`
+2. Open http://localhost:8080/settings
+3. Click "Download Template" to see format
+4. Click "Choose File" and select your CSV
+5. Click "Import Accounts"
+6. Wait ~8 minutes for 800 accounts
+
+#### Step 4: Monitor Sync
+
+- Check sidebar for sync status indicators
+- Spinning icon = syncing
+- Checkmark = completed
+- Red X = failed
+
+---
+
+## 🚀 Deployment
+
+### Current: Development (Supabase)
+- Database: Supabase PostgreSQL
+- Edge Functions: Supabase (Deno runtime)
+- Frontend: Local dev server (Vite)
+
+### Future: Production (Hetzner + Coolify)
+- Server: Hetzner dedicated (16 CPU, 30GB RAM, 320GB storage)
+- Database: Self-hosted PostgreSQL via Coolify
+- Edge Functions: Migrate to self-hosted Deno or Node.js
+- Frontend: Static build deployed via Coolify
+
+**Note:** Production deployment will be done after development is complete.
+
+---
+
+## 🔍 Database Schema
+
+### Core Tables
+
+**`email_accounts`**
+- Stores email account metadata
+- Columns: `id`, `user_id`, `email`, `provider`, `name`, `picture_url`, `is_active`, `last_synced_at`, `unread_count`
+
+**`oauth_tokens`**
+- Stores OAuth access/refresh tokens
+- Columns: `id`, `account_id`, `access_token`, `refresh_token`, `expires_at`, `scope`
+
+**`cached_messages`**
+- Stores email metadata and content
+- Columns: `id`, `account_id`, `message_id`, `thread_id`, `subject`, `snippet`, `sender_name`, `sender_email`, `body_html`, `body_text`, `is_read`, `is_starred`, `received_at`
+
+**`sync_jobs`**
+- Tracks sync operations
+- Columns: `id`, `account_id`, `status`, `started_at`, `completed_at`, `error_message`, `messages_synced`
+
+**`webhook_queue`**
+- Queue for webhook processing
+- Columns: `id`, `account_id`, `email_address`, `history_id`, `provider`, `status`, `retry_count`, `next_retry_at`
+
+---
+
+## 🐛 Troubleshooting
+
+### Dev Server Won't Start
+```bash
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+### Settings Page Not Loading
+1. Hard refresh: `Cmd + Shift + R` (Mac) or `Ctrl + Shift + R` (Windows)
+2. Check browser console (F12) for errors
+3. Verify you're logged in
+
+### Bulk Import Fails
+1. Verify CSV format matches template exactly
+2. Check OAuth tokens are valid: `node scripts/test-oauth-tokens.mjs your-file.csv`
+3. Check browser console for errors
+4. Check Supabase logs: https://supabase.com/dashboard/project/ymqnyhkxfbzsshnyqycl/logs
+
+### Emails Not Syncing
+1. Check account sync status in sidebar (red X = failed)
+2. Check Supabase Edge Function logs
+3. Verify OAuth tokens haven't expired
+4. Re-authorize account via UI
+
+### Background Sync Too Slow
+- Edit `supabase/functions/background-sync/index.ts`
+- Change `.limit(5)` to `.limit(20)` on line 31
+- Deploy: `supabase functions deploy background-sync`
+
+---
+
+## 📊 Performance Expectations
+
+### For 800 Accounts
+
+**Initial Sync (One-Time):**
+- Time: 3.3 hours (after optimization)
+- Storage: ~320 MB
+- Emails: ~16,000
+
+**Daily Sync (Ongoing):**
+- Time: ~45 minutes
+- New emails: 10-20 per account
+- Storage growth: Minimal
+
+**API Quotas:**
+- Gmail: 1 billion quota units/day (well within limits)
+- Outlook: 10,000 requests/10 minutes (well within limits)
+
+**Database:**
+- Size: ~320 MB (16,000 emails)
+- Max: ~500 MB (with growth)
+- Supabase free tier: 500 MB (sufficient)
+
+---
+
+## 🔐 Security
+
+### Authentication
+- Supabase Auth with JWT tokens
+- Row Level Security (RLS) on all tables
+- User can only access their own data
+
+### OAuth Tokens
+- Stored encrypted in database
+- Automatic refresh before expiration
+- Never exposed to client-side code
+
+### API Keys
+- Environment variables (not committed to git)
+- Supabase anon key (safe for client-side)
+- Service role key (server-side only, not used in frontend)
+
+---
+
+## 📚 Additional Resources
+
+### Supabase Dashboard
+- Project: https://supabase.com/dashboard/project/ymqnyhkxfbzsshnyqycl
+- Database: https://supabase.com/dashboard/project/ymqnyhkxfbzsshnyqycl/editor
+- Edge Functions: https://supabase.com/dashboard/project/ymqnyhkxfbzsshnyqycl/functions
+- Logs: https://supabase.com/dashboard/project/ymqnyhkxfbzsshnyqycl/logs
+
+### API Documentation
+- Gmail API: https://developers.google.com/gmail/api
+- Microsoft Graph: https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview
+
+---
+
+## 🤝 Contributing
+
+### For New Developers
+
+1. **Read this README first** - Everything you need is here
+2. **Set up environment** - Follow Quick Start section
+3. **Test with 1 account** - Verify everything works
+4. **Check open issues** - See what needs work
+
+### Development Workflow
+
+```bash
+# Create feature branch
+git checkout -b feature/your-feature
+
+# Make changes
+# ...
+
+# Test locally
+npm run dev
+
+# Commit and push
+git add .
+git commit -m "feat: your feature description"
+git push origin feature/your-feature
+
+# Create pull request on GitHub
+```
+
+---
+
+## 📝 License
+
+This project is private and proprietary.
+
+---
+
+## 📞 Support
+
+- **Repository:** https://github.com/Ct1869/omni-inbox-dash.git
+- **Supabase Project:** ymqnyhkxfbzsshnyqycl
+- **Issues:** Create an issue on GitHub
+
+---
+
+## ✅ Quick Reference
+
+### Essential Commands
+```bash
+npm install          # Install dependencies
+npm run dev          # Start dev server (http://localhost:8080)
+npm run build        # Build for production
+npm run lint         # Run ESLint
+npm run type-check   # Run TypeScript checks
+```
+
+### Essential Files
+- `.env` - Environment variables (copy from `.env.example`)
+- `src/App.tsx` - Main app component and routing
+- `supabase/functions/background-sync/index.ts` - ⚠️ Needs update (5→20)
+- `src/components/dashboard/BulkAccountImport.tsx` - Bulk import UI
+- `scripts/test-oauth-tokens.mjs` - Token validator
+
+### Essential URLs
+- Dev server: http://localhost:8080
+- Settings page: http://localhost:8080/settings
+- Supabase dashboard: https://supabase.com/dashboard/project/ymqnyhkxfbzsshnyqycl
+
+---
+
+## 🎯 Next Steps for New Developer
+
+1. ✅ Read this README completely
+2. ✅ Set up environment (`.env` file)
+3. ✅ Start dev server and test with 1 account
+4. ✅ Update background-sync limit (5→20)
+5. ✅ Test bulk import with fake CSV
+6. ✅ Help obtain OAuth tokens for 800 accounts
+7. ✅ Import and monitor sync
+
+**Estimated time to get up to speed:** 2-3 hours
+
+---
+
+**Last Updated:** 2025-11-19
+**Version:** 1.0.0
+**Status:** Development (ready for bulk import testing)
