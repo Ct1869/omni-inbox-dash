@@ -290,11 +290,6 @@ const MessageList = ({
         query = query.contains("labels", ["INBOX"]);
       }
 
-      // Filter by provider if specified
-      if (provider) {
-        query = query.eq('provider', provider);
-      }
-
       const nextOffset = page * MESSAGES_PER_PAGE;
       const { data, error } = await query
         .order('received_at', { ascending: false })
