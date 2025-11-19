@@ -288,6 +288,19 @@ const MessageList = ({
     setSearchParams({ page: String(page + 1) });
   }, [hasMore, isLoading, isLoadingMore, page, setSearchParams]);
 
+  // Define handleToggleSelect before it's used in renderItem
+  const handleToggleSelect = useCallback((messageId: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  }, []);
+
   // Memoized callbacks for Virtuoso to prevent re-renders
   const handleEndReached = useCallback(() => {
     if (hasMore && !isLoadingMore && !isLoading) {
@@ -339,18 +352,6 @@ const MessageList = ({
   const getInitials = (name: string) => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
-
-  const handleToggleSelect = useCallback((messageId: string) => {
-    setSelectedIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(messageId)) {
-        newSet.delete(messageId);
-      } else {
-        newSet.add(messageId);
-      }
-      return newSet;
-    });
-  }, []);
 
   const handleMarkSelectedAsRead = useCallback(async () => {
     if (selectedIds.size === 0) return;
