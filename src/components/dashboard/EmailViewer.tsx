@@ -26,24 +26,29 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
     let processedHtml = htmlContent || "";
 
     if (processedHtml) {
-      // Configure DOMPurify with strict security settings to prevent XSS
+      // Configure DOMPurify with security settings that preserve email layout
       // SECURITY: Sanitize BEFORE applying any text replacements
       let cleanHtml = DOMPurify.sanitize(processedHtml, {
         ALLOWED_TAGS: [
-          "div", "span", "p", "br", "strong", "b", "em", "i", "u", "a", "img", 
-          "table", "thead", "tbody", "tr", "th", "td", "h1", "h2", "h3", "h4", 
-          "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "code", "hr"
+          "div", "span", "p", "br", "strong", "b", "em", "i", "u", "a", "img",
+          "table", "thead", "tbody", "tr", "th", "td", "h1", "h2", "h3", "h4",
+          "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "code", "hr", "center",
+          "font", "small", "big", "sup", "sub"
         ],
         ALLOWED_ATTR: [
-          "href", "src", "alt", "title", "width", "height", 
-          "class", "id", "align", "valign", "colspan", "rowspan"
+          "href", "src", "alt", "title", "width", "height",
+          "class", "id", "align", "valign", "colspan", "rowspan",
+          "style", "bgcolor", "color", "border", "cellpadding", "cellspacing",
+          "size", "face", "target", "rel"
         ],
         // Explicitly forbid dangerous attributes that can execute scripts
-        FORBID_ATTR: ["style", "onerror", "onload", "onclick", "onmouseover", "bgcolor", "color", "border"],
+        FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onmouseout", "onfocus", "onblur"],
         // Explicitly forbid dangerous tags
-        FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button"],
+        FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select"],
         // Restrict URLs to safe protocols only (https, http, mailto)
         ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+        // Allow data URIs for images (common in emails)
+        ADD_URI_SAFE_ATTR: ["src"],
       });
 
       // Fix encoding issues AFTER sanitization to prevent injection
@@ -83,17 +88,13 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
                 width: 100%;
                 height: auto;
                 overflow-x: hidden;
-                background-color: ${bgColor};
-                color: ${textColor};
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                 font-size: 14px;
                 line-height: 1.6;
-                word-wrap: break-word;
-                overflow-wrap: break-word;
               }
 
               body {
-                padding: 16px;
+                padding: 8px;
               }
 
               /* Reset and responsive images */
@@ -121,18 +122,22 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
                 font-size: 12px;
               }
 
-              /* Responsive tables */
+              /* Responsive tables - preserve email layout */
               table {
-                max-width: 100% !important;
-                width: auto !important;
                 border-collapse: collapse;
-                overflow-x: auto;
-                display: block;
               }
 
               td, th {
-                padding: 8px;
                 vertical-align: top;
+              }
+
+              /* Only make tables responsive on very small screens */
+              @media (max-width: 480px) {
+                table {
+                  max-width: 100% !important;
+                  display: block;
+                  overflow-x: auto;
+                }
               }
 
               /* Links */
@@ -167,29 +172,15 @@ const EmailViewer = ({ htmlContent, textContent, className = "" }: EmailViewerPr
                 color: ${isDark ? "#d4d4d8" : "#52525b"};
               }
 
-              /* Override inline styles that break dark mode */
-              [style*="background-color: white"],
-              [style*="background-color: #ffffff"],
-              [style*="background-color: #fff"],
-              [style*="background: white"],
-              [style*="background: #ffffff"],
-              [style*="background: #fff"] {
-                background-color: ${bgColor} !important;
-              }
-
-              [style*="color: black"],
-              [style*="color: #000000"],
-              [style*="color: #000"] {
-                color: ${textColor} !important;
-              }
-
-              /* Prevent horizontal overflow */
-              body > * {
-                max-width: 100%;
+              /* Prevent horizontal overflow on mobile */
+              @media (max-width: 640px) {
+                body > * {
+                  max-width: 100%;
+                }
               }
 
               /* Handle long words/URLs */
-              * {
+              a, p, div, span {
                 word-wrap: break-word;
                 overflow-wrap: break-word;
               }
