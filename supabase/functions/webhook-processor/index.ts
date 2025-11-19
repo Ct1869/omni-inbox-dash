@@ -28,13 +28,14 @@ Deno.serve(async (req) => {
     console.log('Starting webhook queue processor...');
 
     // Fetch pending queue items, including those ready for retry
+    // Increased limit to process more items in parallel
     const { data: queueItems, error: fetchError } = await supabase
       .from('webhook_queue')
       .select('*')
       .eq('status', 'pending')
       .or(`next_retry_at.is.null,next_retry_at.lte.${new Date().toISOString()}`)
       .order('created_at', { ascending: true })
-      .limit(10);
+      .limit(100); // Increased from 10 to 100 to handle more webhooks
 
     if (fetchError) {
       console.error('Error fetching queue items:', fetchError);
@@ -51,100 +52,119 @@ Deno.serve(async (req) => {
 
     console.log(`Processing ${queueItems.length} queue items`);
 
+    // Group webhooks by account for better processing
+    const byAccount = new Map<string, WebhookQueueItem[]>();
+    queueItems.forEach(item => {
+      if (!byAccount.has(item.account_id)) {
+        byAccount.set(item.account_id, []);
+      }
+      byAccount.get(item.account_id)!.push(item);
+    });
+
+    console.log(`Grouped into ${byAccount.size} accounts`);
+
     let successCount = 0;
     let errorCount = 0;
 
-    // Process items one at a time with rate limiting
-    for (const item of queueItems as WebhookQueueItem[]) {
-      try {
-        // Mark as processing
-        await supabase
-          .from('webhook_queue')
-          .update({ status: 'processing' })
-          .eq('id', item.id);
+    // Process up to 10 accounts in parallel
+    const CONCURRENT_ACCOUNTS = 10;
+    const accountBatches = Array.from(byAccount.entries());
 
-        console.log(`Processing ${item.provider || 'gmail'} webhook for ${item.email_address}, history_id: ${item.history_id}`);
+    for (let i = 0; i < accountBatches.length; i += CONCURRENT_ACCOUNTS) {
+      const batch = accountBatches.slice(i, i + CONCURRENT_ACCOUNTS);
 
-        // Route to appropriate webhook handler based on provider
-        const provider = item.provider || 'gmail';
-        const functionName = provider === 'outlook' ? 'outlook-webhook' : 'gmail-webhook';
-        
-        const webhookPayload = provider === 'outlook' 
-          ? {
-              value: [{
-                subscriptionId: item.history_id,
-                changeType: item.change_type || 'created,updated',
-                resourceData: { id: item.history_id }
-              }]
+      await Promise.allSettled(
+        batch.map(async ([accountId, items]) => {
+          // Process all webhooks for this account sequentially (to preserve order)
+          for (const item of items) {
+            try {
+              // Mark as processing
+              await supabase
+                .from('webhook_queue')
+                .update({ status: 'processing' })
+                .eq('id', item.id);
+
+              console.log(`Processing ${item.provider || 'gmail'} webhook for ${item.email_address}, history_id: ${item.history_id}`);
+
+              // Route to appropriate webhook handler based on provider
+              const provider = item.provider || 'gmail';
+              const functionName = provider === 'outlook' ? 'outlook-webhook' : 'gmail-webhook';
+
+              const webhookPayload = provider === 'outlook'
+                ? {
+                    value: [{
+                      subscriptionId: item.history_id,
+                      changeType: item.change_type || 'created,updated',
+                      resourceData: { id: item.history_id }
+                    }]
+                  }
+                : {
+                    message: {
+                      data: btoa(JSON.stringify({
+                        emailAddress: item.email_address,
+                        historyId: item.history_id,
+                      })),
+                    },
+                  };
+
+              const { error: webhookError } = await supabase.functions.invoke(functionName, {
+                body: webhookPayload,
+              });
+
+              if (webhookError) {
+                throw webhookError;
+              }
+
+              // Mark as completed
+              await supabase
+                .from('webhook_queue')
+                .update({
+                  status: 'completed',
+                  processed_at: new Date().toISOString(),
+                })
+                .eq('id', item.id);
+
+              successCount++;
+
+            } catch (error) {
+              errorCount++;
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+              const retryCount = item.retry_count + 1;
+              const maxRetries = 3;
+
+              if (retryCount >= maxRetries) {
+                await supabase
+                  .from('webhook_queue')
+                  .update({
+                    status: 'failed',
+                    error_message: errorMessage,
+                    retry_count: retryCount,
+                    processed_at: new Date().toISOString(),
+                  })
+                  .eq('id', item.id);
+              } else {
+                const delaySeconds = Math.pow(2, retryCount) * 60;
+                const nextRetryAt = new Date(Date.now() + delaySeconds * 1000);
+
+                await supabase
+                  .from('webhook_queue')
+                  .update({
+                    status: 'pending',
+                    retry_count: retryCount,
+                    error_message: errorMessage,
+                    next_retry_at: nextRetryAt.toISOString(),
+                  })
+                  .eq('id', item.id);
+              }
             }
-          : {
-              message: {
-                data: btoa(JSON.stringify({
-                  emailAddress: item.email_address,
-                  historyId: item.history_id,
-                })),
-              },
-            };
+          }
+        })
+      );
 
-        const { error: webhookError } = await supabase.functions.invoke(functionName, {
-          body: webhookPayload,
-        });
-
-        if (webhookError) {
-          throw webhookError;
-        }
-
-        // Mark as completed
-        await supabase
-          .from('webhook_queue')
-          .update({
-            status: 'completed',
-            processed_at: new Date().toISOString(),
-          })
-          .eq('id', item.id);
-
-        successCount++;
-        console.log(`Successfully processed webhook for ${item.email_address}`);
-
-        // Rate limit: 1 second delay between processing
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-      } catch (error) {
-        errorCount++;
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`Error processing webhook for ${item.email_address}:`, errorMessage);
-
-        const retryCount = item.retry_count + 1;
-        const maxRetries = 3;
-
-        if (retryCount >= maxRetries) {
-          // Max retries reached, mark as failed
-          await supabase
-            .from('webhook_queue')
-            .update({
-              status: 'failed',
-              error_message: errorMessage,
-              retry_count: retryCount,
-              processed_at: new Date().toISOString(),
-            })
-            .eq('id', item.id);
-        } else {
-          // Schedule retry with exponential backoff
-          const delaySeconds = Math.pow(2, retryCount) * 60; // 2min, 4min, 8min
-          const nextRetryAt = new Date(Date.now() + delaySeconds * 1000);
-
-          await supabase
-            .from('webhook_queue')
-            .update({
-              status: 'pending',
-              retry_count: retryCount,
-              error_message: errorMessage,
-              next_retry_at: nextRetryAt.toISOString(),
-            })
-            .eq('id', item.id);
-
-          console.log(`Scheduled retry for ${item.email_address} at ${nextRetryAt.toISOString()}`);
-        }
+      // Small delay between batches to avoid overwhelming the system
+      if (i + CONCURRENT_ACCOUNTS < accountBatches.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 

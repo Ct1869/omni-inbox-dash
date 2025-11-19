@@ -2,17 +2,18 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import debounce from "lodash.debounce";
 import throttle from "lodash.throttle";
 import { useSearchParams } from "react-router-dom";
+import { FixedSizeList as List } from 'react-window';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  Search, 
-  Star, 
-  Paperclip, 
-  Circle, 
-  X, 
+import {
+  Search,
+  Star,
+  Paperclip,
+  Circle,
+  X,
   Bell,
   Users,
   Tag,
@@ -27,6 +28,7 @@ import type { Account, Message } from "@/pages/Dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import MessageItem from "./MessageItem";
+import { MessageListSkeleton } from "@/components/skeletons/MessageListSkeleton";
 
 
 
@@ -499,19 +501,21 @@ const MessageList = ({
         </div>
       </div>
 
-      {/* Messages List */}
-      <ScrollArea className="flex-1">
-        <div 
-          className="h-full"
-          ref={scrollViewportRef}
-          onScroll={handleScroll}
-        >
+      {/* Bulk Operation Progress Indicator */}
+      {(isMarkingRead || isDeleting) && (
+        <div className="px-4 py-3 bg-primary/10 border-b border-border flex items-center gap-3">
+          <RefreshCcw className="animate-spin h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-primary">
+            {isMarkingRead && `Marking ${selectedIds.size} messages as read...`}
+            {isDeleting && `Deleting ${selectedIds.size} messages...`}
+          </span>
+        </div>
+      )}
+
+      {/* Messages List - Virtualized for Performance */}
+      <div className="flex-1 overflow-hidden">
         {isLoading && messages.length === 0 ? (
-          <div className="p-2 space-y-2">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-20 bg-muted/20 animate-pulse rounded-md" />
-            ))}
-          </div>
+          <MessageListSkeleton />
         ) : filteredMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-center p-8">
             <div>
@@ -522,39 +526,46 @@ const MessageList = ({
             </div>
           </div>
         ) : (
-          <div>
-            {filteredMessages.map((message) => (
-              <MessageItem
-                key={message.id}
-                message={message}
-                isSelected={selectedMessage?.id === message.id}
-                onSelect={onSelectMessage}
-                isCheckboxSelected={selectedIds.has(message.id)}
-                onToggleCheckbox={handleToggleSelect}
-              />
-            ))}
-            {hasMore && !isLoadingMore && (
-              <div className="p-4 bg-background">
-                <Button 
-                  variant="outline" 
-                  onClick={loadMoreMessages}
-                  disabled={isLoadingMore}
-                  className="w-full bg-background hover:bg-muted border-border"
-                >
-                  Load More
-                </Button>
-              </div>
-            )}
-            {isLoadingMore && (
-              <div className="p-4 flex justify-center bg-background">
-                <RefreshCcw className="animate-spin h-4 w-4 mr-2" />
-                <span className="text-muted-foreground text-sm">Loading more messages...</span>
-              </div>
-            )}
+          <List
+            height={typeof window !== 'undefined' ? window.innerHeight - 200 : 600}
+            itemCount={filteredMessages.length}
+            itemSize={92}
+            width="100%"
+            onScroll={({ scrollOffset }) => {
+              // Trigger load more when near bottom
+              const totalHeight = filteredMessages.length * 92;
+              const visibleHeight = typeof window !== 'undefined' ? window.innerHeight - 200 : 600;
+              const scrollPercentage = scrollOffset / (totalHeight - visibleHeight);
+
+              if (scrollPercentage > 0.8 && hasMore && !isLoadingMore && !isLoading) {
+                loadMoreMessages();
+              }
+            }}
+          >
+            {({ index, style }) => {
+              const message = filteredMessages[index];
+              return (
+                <div style={style}>
+                  <MessageItem
+                    key={message.id}
+                    message={message}
+                    isSelected={selectedMessage?.id === message.id}
+                    onSelect={onSelectMessage}
+                    isCheckboxSelected={selectedIds.has(message.id)}
+                    onToggleCheckbox={handleToggleSelect}
+                  />
+                </div>
+              );
+            }}
+          </List>
+        )}
+        {isLoadingMore && (
+          <div className="p-4 flex justify-center bg-background border-t">
+            <RefreshCcw className="animate-spin h-4 w-4 mr-2" />
+            <span className="text-sm text-muted-foreground">Loading more messages...</span>
           </div>
         )}
-        </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 };

@@ -33,6 +33,34 @@ async function retryWithBackoff<T>(
   throw new Error(`${operation} failed after ${maxRetries} attempts: ${lastError!.message}`);
 }
 
+// Rate limiter class to prevent hitting API quotas
+class RateLimiter {
+  private queue: (() => Promise<any>)[] = [];
+  private running = 0;
+  private maxConcurrent: number;
+  private minDelay: number;
+
+  constructor(maxConcurrent: number, minDelayMs: number) {
+    this.maxConcurrent = maxConcurrent;
+    this.minDelay = minDelayMs;
+  }
+
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    while (this.running >= this.maxConcurrent) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    this.running++;
+    try {
+      const result = await fn();
+      await new Promise(resolve => setTimeout(resolve, this.minDelay));
+      return result;
+    } finally {
+      this.running--;
+    }
+  }
+}
+
 async function refreshAccessToken(refreshToken: string) {
   const MICROSOFT_CLIENT_ID = Deno.env.get("MICROSOFT_CLIENT_ID");
   const MICROSOFT_CLIENT_SECRET = Deno.env.get("MICROSOFT_CLIENT_SECRET");
@@ -153,47 +181,54 @@ serve(async (req) => {
     let nextSkipToken = skipToken;
     let totalFetched = 0;
 
+    // Microsoft Graph API quota: 60 requests per minute per app
+    // Using 3 concurrent with 1 sec delay = ~3 req/sec = 180 req/min (well under quota)
+    const limiter = new RateLimiter(3, 1000);
+
     console.log(`Starting Outlook sync for account ${accountId}, max messages: ${maxMessages}`);
-    
+    console.log(`Rate limiting: 3 concurrent requests, 1 second delay between requests`);
+
     while (totalFetched < maxMessages) {
       checkTimeout();
-      
+
       const pageSize = Math.min(100, maxMessages - totalFetched); // Reduced from 500 to 100 to prevent WORKER_LIMIT
       let url = `https://graph.microsoft.com/v1.0/me/messages?$top=${pageSize}&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,bodyPreview,body,receivedDateTime,isRead,categories,hasAttachments,conversationId&$orderby=receivedDateTime desc`;
-      
+
       if (nextSkipToken) {
         url += `&$skiptoken=${nextSkipToken}`;
       }
 
-      const outlookResponse = await retryWithBackoff(
-        async () => {
-          const response = await fetch(url, {
-            headers: { 
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
+      const outlookResponse = await limiter.execute(async () => {
+        return await retryWithBackoff(
+          async () => {
+            const response = await fetch(url, {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (response.status === 429) {
+              const retryAfter = response.headers.get('Retry-After');
+              const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : 2000;
+              console.log(`Rate limited. Waiting ${waitMs}ms...`);
+              await new Promise(resolve => setTimeout(resolve, waitMs));
+              throw new Error('Rate limited, retrying...');
             }
-          });
 
-          if (response.status === 429) {
-            const retryAfter = response.headers.get('Retry-After');
-            const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : 2000;
-            console.log(`Rate limited. Waiting ${waitMs}ms...`);
-            await new Promise(resolve => setTimeout(resolve, waitMs));
-            throw new Error('Rate limited, retrying...');
-          }
+            if (!response.ok) {
+              throw new Error("Failed to fetch messages from Outlook");
+            }
 
-          if (!response.ok) {
-            throw new Error("Failed to fetch messages from Outlook");
-          }
-
-          return response;
-        },
-        3,
-        'Fetch messages from Outlook'
-      );
+            return response;
+          },
+          3,
+          'Fetch messages from Outlook'
+        );
+      });
 
       const data = await outlookResponse.json();
-      
+
       if (!data.value || data.value.length === 0) {
         console.log("No more messages to fetch");
         break;
@@ -201,7 +236,7 @@ serve(async (req) => {
 
       allMessages.push(...data.value);
       totalFetched += data.value.length;
-      
+
       console.log(`Fetched ${data.value.length} messages (total: ${totalFetched})`);
 
       if (!data['@odata.nextLink']) {

@@ -28,7 +28,7 @@ serve(async (req) => {
       .select("id, email, last_synced_at, provider")
       .eq("is_active", true)
       .or(`last_synced_at.is.null,last_synced_at.lt.${fiveMinutesAgo}`)
-      .limit(5); // Process max 5 accounts per run to avoid rate limits
+      .limit(50); // Process 50 accounts per run (300 accounts / 50 = 6 runs = 30 min full sync)
 
     if (accountsError) {
       console.error("Error fetching accounts:", accountsError);
