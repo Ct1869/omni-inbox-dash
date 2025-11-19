@@ -236,104 +236,108 @@ const MessageDetail = ({ message, accountId, onMessageDeleted, provider = 'gmail
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background h-full overflow-hidden">
-      {/* Header - Fixed with responsive padding */}
-      <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border flex-shrink-0 bg-background sticky top-0 z-10">
-        <h1 className="text-lg md:text-xl font-semibold mb-2 line-clamp-2">{message.subject}</h1>
-        
-        {/* Sender Info - Responsive Stack */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Avatar className="h-6 w-6 flex-shrink-0">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                {getInitials(message.from.name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex items-center gap-1 min-w-0 flex-wrap text-sm text-muted-foreground">
-              <span className="text-foreground font-medium truncate">{message.from.name}</span>
-              <span className="truncate">&lt;{message.from.email}&gt;</span>
-              {recipients.length > 0 && (
-                <span className="truncate hidden md:inline">to {recipients.join(", ")}</span>
-              )}
-            </div>
-          </div>
-          
-          {/* Action Buttons - Responsive */}
-          <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-            <div className="flex items-center gap-1 text-xs md:text-sm text-muted-foreground">
-              <Clock className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">{formattedDate}</span>
-            </div>
-            {hasAttachments && (
-              <div className="flex items-center gap-1 text-xs md:text-sm text-muted-foreground">
-                <Paperclip className="h-3 w-3 md:h-4 md:w-4" />
-                <span>{attachmentCount}</span>
-              </div>
-            )}
-            <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8">
-              <Star className={cn("h-3 w-3 md:h-4 md:w-4", message.isFlagged && "fill-accent text-accent")} />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 hidden sm:flex" onClick={handleForward} title="Forward">
-              <Forward className="h-3 w-3 md:h-4 md:w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 hidden sm:flex">
-              <Archive className="h-3 w-3 md:h-4 md:w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 text-destructive" onClick={handleDelete} title="Delete">
-              <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8">
-              <MoreHorizontal className="h-3 w-3 md:h-4 md:w-4" />
-            </Button>
-          </div>
+    <div className="flex h-full flex-col bg-background">
+      {/* Header - Modern sticky header with backdrop blur */}
+      <div className="flex h-14 items-center justify-between border-b border-border/40 px-6 backdrop-blur-md sticky top-0 bg-background/80 z-10">
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setIsReplying(true)}>
+            <Reply className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={handleForward}>
+            <Forward className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+            <Archive className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={handleDelete}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          {message.labels && message.labels.length > 0 && (
+            <span className="text-xs text-muted-foreground bg-accent/50 px-2 py-1 rounded">
+              {message.labels[0]}
+            </span>
+          )}
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
-      {/* Message Body - Scrollable with responsive padding */}
-      <ScrollArea className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 w-full max-w-5xl mx-auto">
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Loading message…</div>
-          ) : (
+      {/* Message Body - Scrollable */}
+      <div className="flex-1 overflow-y-auto p-8">
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight text-foreground">{message.subject}</h1>
+        <div className="mb-8 flex items-start justify-between">
+          <div className="flex gap-3">
+            <Avatar className="h-10 w-10 border border-border">
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {getInitials(message.from.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-foreground">{message.from.name}</span>
+                <span className="text-xs text-muted-foreground">&lt;{message.from.email}&gt;</span>
+              </div>
+              {recipients.length > 0 && (
+                <span className="text-xs text-muted-foreground">To: {recipients.join(", ")}</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-muted-foreground">{formattedDate}</div>
+            {hasAttachments && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Paperclip className="h-3 w-3" />
+                <span>{attachmentCount}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        <Separator className="mb-8 opacity-50" />
+        {loading ? (
+          <div className="text-sm text-muted-foreground">Loading message…</div>
+        ) : (
+          <div className="prose prose-invert max-w-none text-sm leading-relaxed text-foreground/90">
             <EmailViewer htmlContent={bodyHtml} textContent={bodyText} />
-          )}
+          </div>
+        )}
 
-          {/* Reply Section - Responsive */}
-          {!isReplying ? (
-            <div className="mt-6 md:mt-8">
-              <Button onClick={() => setIsReplying(true)} className="w-full md:w-auto">
-                <Reply className="w-4 h-4 mr-2" />
-                Reply
+        {/* Reply Section */}
+        {!isReplying ? (
+          <div className="mt-8">
+            <Button onClick={() => setIsReplying(true)} className="w-full md:w-auto">
+              <Reply className="w-4 h-4 mr-2" />
+              Reply
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-8 space-y-4">
+            <Textarea
+              placeholder="Type your reply..."
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              className="min-h-32 bg-input border-border"
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setIsReplying(false);
+                  setReplyText('');
+                }}
+                disabled={isSending}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleReply} disabled={!replyText.trim() || isSending}>
+                {isSending ? 'Sending...' : 'Send Reply'}
               </Button>
             </div>
-          ) : (
-            <div className="mt-6 md:mt-8 space-y-4">
-              <Textarea
-                placeholder="Type your reply..."
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                className="min-h-24 md:min-h-32 bg-input border-border"
-              />
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setIsReplying(false);
-                    setReplyText('');
-                  }}
-                  disabled={isSending}
-                  className="text-sm"
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleReply} disabled={!replyText.trim() || isSending} className="text-sm">
-                  {isSending ? 'Sending...' : 'Send Reply'}
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

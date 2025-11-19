@@ -87,85 +87,89 @@ const MessageItem = memo(({
     <div
       onClick={() => onSelect(message)}
       className={cn(
-        "px-4 py-3 border-b border-border cursor-pointer transition-colors hover:bg-muted/30",
-        isSelected && "bg-muted/50",
-        message.isUnread && "bg-muted/20"
+        "group relative flex cursor-default flex-col gap-1 p-4 text-sm transition-all hover:bg-accent/50",
+        isSelected
+          ? "bg-accent before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:bg-primary"
+          : "border-b border-border/40"
       )}
     >
-      <div className="flex items-start gap-3">
-        <input
-          type="checkbox"
-          checked={isCheckboxSelected}
-          onChange={(e) => {
-            e.stopPropagation();
-            onToggleCheckbox(message.id);
-          }}
-          className="mt-1"
-        />
-        
-        {brandInfo ? (
-          <div className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0",
-            brandInfo.color
-          )}>
-            {brandInfo.initial}
-          </div>
-        ) : (
-          <Avatar className="w-10 h-10 flex-shrink-0">
-            <AvatarFallback className="text-xs bg-primary/10 text-primary">
-              {getInitials(message.from.name)}
-            </AvatarFallback>
-          </Avatar>
-        )}
-        
-        <div className="flex-1 min-w-0 space-y-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className={cn(
-                "text-sm truncate",
-                message.isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
-              )}>
-                {message.from.name}
-              </span>
-              {message.labels && message.labels.length > 0 && (
-                <div className="flex gap-1">
-                  {message.labels.slice(0, 2).map((label) => (
-                    <Badge 
-                      key={label} 
-                      variant="secondary" 
-                      className="text-xs px-1.5 py-0"
-                    >
-                      {label}
-                    </Badge>
-                  ))}
-                </div>
-              )}
+      <div className="flex w-full items-center justify-between">
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={isCheckboxSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleCheckbox(message.id);
+            }}
+            className="rounded border-border"
+          />
+
+          {brandInfo ? (
+            <div className={cn(
+              "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0",
+              brandInfo.color
+            )}>
+              {brandInfo.initial}
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {formatDate(message.date)}
-              </span>
-              {message.isFlagged && (
-                <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-              )}
-              {message.hasAttachments && (
-                <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
-              )}
-            </div>
-          </div>
-          
-          <div className={cn(
-            "text-sm truncate",
-            message.isUnread ? "font-medium text-foreground" : "text-muted-foreground"
+          ) : (
+            <Avatar className="w-8 h-8 flex-shrink-0">
+              <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                {getInitials(message.from.name)}
+              </AvatarFallback>
+            </Avatar>
+          )}
+
+          <span className={cn(
+            "font-medium",
+            message.isUnread ? "text-foreground font-semibold" : "text-muted-foreground"
           )}>
-            {message.subject}
-          </div>
-          
-          <div className="text-xs text-muted-foreground truncate">
-            {message.preview}
-          </div>
+            {message.from.name}
+          </span>
+          {message.isUnread && (
+            <span className="h-2 w-2 rounded-full bg-brand-teal animate-pulse" />
+          )}
         </div>
+        <span className={cn(
+          "text-xs tabular-nums",
+          isSelected ? "text-foreground" : "text-muted-foreground"
+        )}>
+          {formatDate(message.date)}
+        </span>
       </div>
+
+      <div className="flex items-center gap-2 ml-11">
+        <span className={cn(
+          "truncate font-medium",
+          message.isUnread ? "text-foreground" : "text-foreground/80"
+        )}>
+          {message.subject}
+        </span>
+        {message.hasAttachments && (
+          <Paperclip className="h-3 w-3 text-muted-foreground" />
+        )}
+        {message.isFlagged && (
+          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+        )}
+      </div>
+
+      <div className="line-clamp-1 text-xs text-muted-foreground ml-11">
+        {message.preview}
+      </div>
+
+      {message.labels && message.labels.length > 0 && (
+        <div className="mt-2 flex items-center gap-2 ml-11">
+          {message.labels.slice(0, 3).map((label) => (
+            <Badge
+              key={label}
+              variant="outline"
+              className="h-5 rounded-md border-border bg-background/50 px-1.5 text-[10px] font-normal text-muted-foreground group-hover:border-primary/30 group-hover:text-primary"
+            >
+              {label}
+            </Badge>
+          ))}
+        </div>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
