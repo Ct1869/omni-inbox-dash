@@ -1,4 +1,4 @@
-project_id = "vntkvhmpnvnqxdprgvjk"
+project_id = "ymqnyhkxfbzsshnyqycl"
 
 [functions.gmail-oauth]
 verify_jwt = true

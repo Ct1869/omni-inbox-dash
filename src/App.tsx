@@ -15,6 +15,7 @@ const GmailView = lazy(() => import("./pages/GmailView"));
 const OutlookView = lazy(() => import("./pages/OutlookView"));
 const GmailInbox = lazy(() => import("./pages/GmailInbox"));
 const OutlookInbox = lazy(() => import("./pages/OutlookInbox"));
+const Settings = lazy(() => import("./pages/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -53,6 +54,11 @@ const App = () => (
               <Route path="/dashboard/outlook/:accountId" element={
                 <ProtectedRoute>
                   <OutlookView />
+                </ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Inbox, 
-  Star, 
-  FileText, 
-  Send, 
-  Archive, 
-  AlertCircle, 
+import {
+  Inbox,
+  Star,
+  FileText,
+  Send,
+  Archive,
+  AlertCircle,
   Trash2,
   ChevronDown,
   Plus,
@@ -17,7 +17,8 @@ import {
   Check,
   Mail,
   RefreshCw,
-  Bell
+  Bell,
+  Settings
 } from "lucide-react";
 import gmailIcon from "@/assets/gmail-icon.svg";
 import outlookIcon from "@/assets/outlook-icon.svg";
@@ -293,9 +294,9 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="min-h-[44px] min-w-[44px]"
                   onClick={() => navigate('/dashboard/outlook')}
                 >
@@ -303,6 +304,21 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Outlook Inbox</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="min-h-[44px] min-w-[44px]"
+                  onClick={() => navigate('/settings')}
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Settings & Bulk Import</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
