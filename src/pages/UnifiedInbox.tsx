@@ -58,16 +58,33 @@ export default function UnifiedInbox() {
 
     // Fetch Accounts
     const fetchAccounts = async () => {
+        console.log('🔍 [DEBUG] Fetching accounts...');
+
+        // Get current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+            console.error('❌ [DEBUG] No authenticated user:', userError);
+            toast.error('Please log in to view accounts');
+            navigate('/auth');
+            return;
+        }
+
+        console.log('[DEBUG] User ID:', user.id);
+
         const { data: accs, error } = await supabase
             .from('email_accounts')
             .select('*')
+            .eq('user_id', user.id)
             .eq('is_active', true);
 
         if (error) {
-            console.error('Error fetching accounts:', error);
+            console.error('❌ [DEBUG] Error fetching accounts:', error);
             toast.error('Failed to load accounts');
             return;
         }
+
+        console.log('✅ [DEBUG] Accounts fetched:', accs?.length || 0, 'accounts');
+        console.log('[DEBUG] Account data:', accs);
 
         if (accs) {
             const mappedAccounts: EmailAccount[] = accs.map(acc => ({
@@ -78,12 +95,14 @@ export default function UnifiedInbox() {
                 lastSync: new Date(acc.last_synced_at || Date.now()),
                 status: 'connected' // Assuming connected if active
             }));
+            console.log('📧 [DEBUG] Mapped accounts:', mappedAccounts);
             setAccounts(mappedAccounts);
         }
     };
 
     // Fetch Emails
     const fetchEmails = async () => {
+        console.log('📬 [DEBUG] Fetching emails with filter:', filter);
         setIsLoading(true);
         try {
             let query = supabase
@@ -93,6 +112,7 @@ export default function UnifiedInbox() {
                 .limit(50); // Pagination to be added later
 
             if (filter.accountId) {
+                console.log('[DEBUG] Filtering by accountId:', filter.accountId);
                 query = query.eq('account_id', filter.accountId);
             } else if (filter.provider !== 'all') {
                 // Need to join with accounts to filter by provider, or fetch accounts first and filter by IDs
@@ -100,23 +120,29 @@ export default function UnifiedInbox() {
                 // Assuming we fetch all for 'all' and filter in memory if needed, or better:
                 // Get account IDs for provider
                 const accountIds = accounts.filter(a => a.provider === filter.provider).map(a => a.id);
+                console.log('[DEBUG] Filtering by provider:', filter.provider, 'Account IDs:', accountIds);
                 if (accountIds.length > 0) {
                     query = query.in('account_id', accountIds);
                 }
             }
 
             if (filter.onlyUnread) {
+                console.log('[DEBUG] Filtering unread only');
                 query = query.eq('is_read', false);
             }
 
             // Folder Filtering
             if (filter.folder === 'sent') {
+                console.log('[DEBUG] Filtering sent folder');
                 query = query.contains('labels', ['SENT']); // Assuming 'SENT' label for sent emails
             } else if (filter.folder === 'trash') {
+                console.log('[DEBUG] Filtering trash folder');
                 query = query.contains('labels', ['TRASH']);
             } else if (filter.folder === 'starred') {
+                console.log('[DEBUG] Filtering starred');
                 query = query.eq('is_starred', true);
             } else {
+                console.log('[DEBUG] Default inbox view');
                 // Default to inbox (exclude sent/trash unless explicitly asked?)
                 // For now, just don't filter by label implies 'all mail' or 'inbox' depending on provider
                 // A common pattern is to exclude TRASH and SPAM from default view
@@ -125,6 +151,7 @@ export default function UnifiedInbox() {
 
             // Search Query
             if (filter.searchQuery) {
+                console.log('[DEBUG] Search query:', filter.searchQuery);
                 const q = `%${filter.searchQuery}%`;
                 query = query.or(`subject.ilike.${q},sender_name.ilike.${q},sender_email.ilike.${q},body_text.ilike.${q}`);
             }
@@ -132,6 +159,9 @@ export default function UnifiedInbox() {
             const { data: msgs, error } = await query;
 
             if (error) throw error;
+
+            console.log('✅ [DEBUG] Emails fetched:', msgs?.length || 0, 'emails');
+            console.log('[DEBUG] Email data sample:', msgs?.slice(0, 2));
 
             if (msgs) {
                 const mappedEmails: Email[] = msgs.map(msg => ({
@@ -147,10 +177,11 @@ export default function UnifiedInbox() {
                     isStarred: false, // Schema might not have this yet
                     folder: 'inbox' // Defaulting to inbox for now
                 }));
+                console.log('📧 [DEBUG] Mapped emails:', mappedEmails.length);
                 setEmails(mappedEmails);
             }
         } catch (err) {
-            console.error('Error fetching emails:', err);
+            console.error('❌ [DEBUG] Error fetching emails:', err);
             toast.error('Failed to load emails');
         } finally {
             setIsLoading(false);
@@ -167,7 +198,8 @@ export default function UnifiedInbox() {
         if (accounts.length > 0) {
             fetchEmails();
         }
-    }, [filter, accounts]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filter, accounts.length]); // Use accounts.length to avoid infinite loop
 
     const handleSync = async () => {
         if (isSyncing) return;
