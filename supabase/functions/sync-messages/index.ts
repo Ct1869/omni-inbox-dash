@@ -467,10 +467,35 @@ serve(async (req) => {
 
     const isAuthError = errorMessage.includes("Failed to refresh token") ||
       errorMessage.includes("invalid_grant") ||
-      errorMessage.includes("unauthorized_client");
+      errorMessage.includes("unauthorized_client") ||
+      errorMessage.includes("Token has been expired or revoked");
+
+    // If it's an auth error, mark the account as needing re-authentication
+    if (isAuthError && accountId) {
+      try {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+        );
+        
+        // Mark account as inactive so user knows to reconnect
+        await supabase
+          .from("email_accounts")
+          .update({ is_active: false })
+          .eq("id", accountId);
+        
+        console.log(`Marked account ${accountId} as inactive due to auth error`);
+      } catch (updateError) {
+        console.error("Failed to mark account as inactive:", updateError);
+      }
+    }
 
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ 
+        error: isAuthError 
+          ? "Gmail authentication expired. Please reconnect your account in Settings." 
+          : errorMessage 
+      }),
       {
         status: isAuthError ? 401 : 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

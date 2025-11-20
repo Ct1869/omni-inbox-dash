@@ -22,7 +22,13 @@ async function refreshAccessToken(refreshToken: string) {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to refresh access token");
+    const errorData = await response.json().catch(() => ({}));
+    console.error("Google token refresh failed:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorData
+    });
+    throw new Error(`Failed to refresh token: ${errorData.error || response.statusText}`);
   }
 
   return await response.json();
@@ -142,6 +148,22 @@ serve(async (req) => {
       } catch (error) {
         console.error(`Error renewing watch for account ${watch.account_id}:`, error);
         failed++;
+        
+        // If token refresh failed with invalid_grant, mark account as inactive
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes("invalid_grant") || errorMessage.includes("Token has been expired or revoked")) {
+          console.log(`Marking account ${watch.account_id} as inactive due to auth error`);
+          await supabase
+            .from("email_accounts")
+            .update({ is_active: false })
+            .eq("id", watch.account_id);
+          
+          // Deactivate the watch
+          await supabase
+            .from("gmail_watches")
+            .update({ is_active: false })
+            .eq("id", watch.id);
+        }
       }
     }
 
