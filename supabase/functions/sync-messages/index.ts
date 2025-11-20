@@ -49,7 +49,13 @@ async function refreshAccessToken(refreshToken: string) {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to refresh token");
+    const errorData = await response.json().catch(() => ({}));
+    console.error("Google token refresh failed:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorData
+    });
+    throw new Error(`Failed to refresh token: ${errorData.error || response.statusText}`);
   }
 
   return await response.json();
