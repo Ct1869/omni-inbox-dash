@@ -91,7 +91,7 @@ serve(async (req) => {
     // Handle mark as read action
     if (markAsRead || action === 'markAsRead') {
       const idsToMark = messageIds || [messageId];
-      
+
       for (const msgId of idsToMark) {
         const { data: msg } = await supabase
           .from('cached_messages')
@@ -122,7 +122,7 @@ serve(async (req) => {
             .eq('account_id', accountId);
         }
       }
-      
+
       return new Response(
         JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -132,7 +132,7 @@ serve(async (req) => {
     // Handle compose new email
     if (composeData) {
       const { to, subject, body } = composeData;
-      
+
       const message = {
         subject: subject,
         body: {
@@ -175,13 +175,13 @@ serve(async (req) => {
     // Handle delete action
     if (action === "delete") {
       const idsToDelete = messageIds || [messageId];
-      
+
       if (idsToDelete.length === 0) {
         throw new Error("No message IDs provided");
       }
 
       console.log(`Deleting ${idsToDelete.length} Outlook messages for account ${accountId}`);
-      
+
       const { data: msgs, error: fetchError } = await supabase
         .from("cached_messages")
         .select("id, message_id")
@@ -239,12 +239,12 @@ serve(async (req) => {
       }
 
       const failedCount = results.filter(r => !r.success).length;
-      
+
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           deleted: successIds.length,
-          failed: failedCount 
+          failed: failedCount
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -339,13 +339,20 @@ serve(async (req) => {
     }
 
     throw new Error("Invalid action");
+    throw new Error("Invalid action");
   } catch (err: any) {
     console.error("Send Outlook reply error:", err);
+
+    const errorMessage = err.message || "Failed to process request";
+    const isAuthError = errorMessage.includes("Failed to refresh Outlook token") ||
+      errorMessage.includes("invalid_grant") ||
+      errorMessage.includes("unauthorized_client");
+
     return new Response(
-      JSON.stringify({ error: err.message || "Failed to process request" }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      JSON.stringify({ error: errorMessage }),
+      {
+        status: isAuthError ? 401 : 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     );
   }

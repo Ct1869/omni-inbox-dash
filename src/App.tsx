@@ -17,6 +17,7 @@ const GmailInbox = lazy(() => import("./pages/GmailInbox"));
 const OutlookInbox = lazy(() => import("./pages/OutlookInbox"));
 const Settings = lazy(() => import("./pages/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const UnifiedInbox = lazy(() => import("./pages/UnifiedInbox"));
 
 const queryClient = new QueryClient();
 
@@ -33,34 +34,11 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/dashboard" element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <UnifiedInbox />
                 </ProtectedRoute>
               } />
-              <Route path="/dashboard/gmail" element={
-                <ProtectedRoute>
-                  <GmailInbox />
-                </ProtectedRoute>
-              } />
-              <Route path="/dashboard/outlook" element={
-                <ProtectedRoute>
-                  <OutlookInbox />
-                </ProtectedRoute>
-              } />
-              <Route path="/dashboard/gmail/:accountId" element={
-                <ProtectedRoute>
-                  <GmailView />
-                </ProtectedRoute>
-              } />
-              <Route path="/dashboard/outlook/:accountId" element={
-                <ProtectedRoute>
-                  <OutlookView />
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              } />
+              {/* Redirect old routes to dashboard for now */}
+              <Route path="/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

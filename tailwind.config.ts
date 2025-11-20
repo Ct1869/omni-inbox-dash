@@ -13,12 +13,22 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        
+        // Frontomni Custom Colors
+        obsidian: 'var(--bg-primary)',
+        charcoal: 'var(--bg-secondary)',
+        glass: 'var(--glass-bg)',
+        
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -73,6 +83,21 @@ export default {
           border: "hsl(var(--ai-summary-border))",
           bg: "hsl(var(--ai-summary-bg))",
         },
+        // Frontomni Neon Colors
+        neon: {
+          cyan: 'var(--accent-primary)',
+          purple: 'var(--accent-secondary)',
+          green: 'var(--accent-tertiary)'
+        },
+        text: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)'
+        },
+      },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'neon-border': 'linear-gradient(45deg, var(--accent-primary), var(--accent-secondary))',
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -13,7 +13,7 @@ async function retryWithBackoff<T>(
   operation = 'operation'
 ): Promise<T> {
   let lastError: Error;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`${operation}: Attempt ${attempt}/${maxRetries}`);
@@ -21,7 +21,7 @@ async function retryWithBackoff<T>(
     } catch (error) {
       lastError = error as Error;
       console.error(`${operation}: Attempt ${attempt} failed:`, lastError.message);
-      
+
       if (attempt < maxRetries) {
         const delayMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
         console.log(`${operation}: Waiting ${delayMs}ms before retry...`);
@@ -29,7 +29,7 @@ async function retryWithBackoff<T>(
       }
     }
   }
-  
+
   throw new Error(`${operation} failed after ${maxRetries} attempts: ${lastError!.message}`);
 }
 
@@ -67,7 +67,7 @@ async function batchFetchMessages(messageIds: string[], accessToken: string) {
         headers: { Authorization: `Bearer ${accessToken}` }
       }).then(res => res.ok ? res.json() : null)
     );
-    
+
     const results = await Promise.all(promises);
     allMessages.push(...results.filter(Boolean));
   }
@@ -126,18 +126,18 @@ serve(async (req) => {
   let accountId: string | undefined;
   let pageToken: string | null = null;
   let maxMessages = 1000;
-  
+
   try {
     // Parse body once
     const body = await req.json();
     accountId = body.accountId;
     pageToken = body.pageToken || null;
     maxMessages = body.maxMessages || 1000;
-    
+
     // Set timeout for this function (5 minutes)
     const timeoutMs = 5 * 60 * 1000;
     const startTime = Date.now();
-    
+
     const checkTimeout = () => {
       if (Date.now() - startTime > timeoutMs) {
         throw new Error('Sync operation timeout: exceeded 5 minutes');
@@ -198,16 +198,16 @@ serve(async (req) => {
     }
 
     const tokens = account.oauth_tokens;
-    
+
     // Check if token is expired
     let accessToken = tokens.access_token;
     const expiresAt = new Date(tokens.expires_at);
-    
+
     if (expiresAt < new Date()) {
       console.log("Token expired, refreshing...");
       const newTokens = await refreshAccessToken(tokens.refresh_token);
       accessToken = newTokens.access_token;
-      
+
       // Update stored tokens
       await supabase
         .from("oauth_tokens")
@@ -224,13 +224,13 @@ serve(async (req) => {
 
     // Fetch messages with pagination
     console.log(`Starting sync for account ${accountId}, max messages: ${maxMessages}`);
-    
+
     while (totalFetched < maxMessages) {
       checkTimeout(); // Check if we've exceeded timeout
-      
+
       const pageSize = Math.min(100, maxMessages - totalFetched); // Reduced from 500 to 100 to prevent WORKER_LIMIT
       let url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}`;
-      
+
       if (nextPageToken) {
         url += `&pageToken=${nextPageToken}`;
       }
@@ -260,7 +260,7 @@ serve(async (req) => {
       );
 
       const data = await gmailResponse.json();
-      
+
       if (!data.messages || data.messages.length === 0) {
         console.log("No more messages to fetch");
         break;
@@ -268,7 +268,7 @@ serve(async (req) => {
 
       allMessageIds.push(...data.messages);
       totalFetched += data.messages.length;
-      
+
       console.log(`Fetched ${data.messages.length} message IDs (total: ${totalFetched})`);
 
       if (!data.nextPageToken) {
@@ -300,7 +300,7 @@ serve(async (req) => {
     // Batch fetch all message details
     const messageIds = allMessageIds.map((m: any) => m.id);
     const messages = await batchFetchMessages(messageIds, accessToken);
-    
+
     console.log(`Successfully fetched ${messages.length} full messages`);
 
     let syncedCount = 0;
@@ -384,7 +384,7 @@ serve(async (req) => {
               updated_at: new Date().toISOString(),
             })
             .eq("id", syncJob.id);
-          
+
           console.log(`Progress: ${syncedCount}/${messages.length} messages synced`);
         }
       } catch (error) {
@@ -424,9 +424,9 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Sync error:", error);
-    
+
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
+
     // Try to update sync job if possible (use accountId from outer scope)
     if (accountId) {
       try {
@@ -434,7 +434,7 @@ serve(async (req) => {
           Deno.env.get("SUPABASE_URL") ?? "",
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
         );
-        
+
         // Find the most recent processing job for this account
         const { data: jobs } = await supabase
           .from("sync_jobs")
@@ -459,10 +459,14 @@ serve(async (req) => {
       }
     }
 
+    const isAuthError = errorMessage.includes("Failed to refresh token") ||
+      errorMessage.includes("invalid_grant") ||
+      errorMessage.includes("unauthorized_client");
+
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {
-        status: 500,
+        status: isAuthError ? 401 : 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );

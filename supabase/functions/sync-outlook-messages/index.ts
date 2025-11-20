@@ -13,7 +13,7 @@ async function retryWithBackoff<T>(
   operation = 'operation'
 ): Promise<T> {
   let lastError: Error;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`${operation}: Attempt ${attempt}/${maxRetries}`);
@@ -21,7 +21,7 @@ async function retryWithBackoff<T>(
     } catch (error) {
       lastError = error as Error;
       console.error(`${operation}: Attempt ${attempt} failed:`, lastError.message);
-      
+
       if (attempt < maxRetries) {
         const delayMs = Math.pow(2, attempt) * 1000;
         console.log(`${operation}: Waiting ${delayMs}ms before retry...`);
@@ -29,7 +29,7 @@ async function retryWithBackoff<T>(
       }
     }
   }
-  
+
   throw new Error(`${operation} failed after ${maxRetries} attempts: ${lastError!.message}`);
 }
 
@@ -64,16 +64,16 @@ serve(async (req) => {
   let accountId: string | undefined;
   let skipToken: string | null = null;
   let maxMessages = 1000;
-  
+
   try {
     const body = await req.json();
     accountId = body.accountId;
     skipToken = body.skipToken || null;
     maxMessages = body.maxMessages || 1000;
-    
+
     const timeoutMs = 5 * 60 * 1000;
     const startTime = Date.now();
-    
+
     const checkTimeout = () => {
       if (Date.now() - startTime > timeoutMs) {
         throw new Error('Sync operation timeout: exceeded 5 minutes');
@@ -131,15 +131,15 @@ serve(async (req) => {
     }
 
     const tokens = account.oauth_tokens;
-    
+
     let accessToken = tokens.access_token;
     const expiresAt = new Date(tokens.expires_at);
-    
+
     if (expiresAt < new Date()) {
       console.log("Token expired, refreshing...");
       const newTokens = await refreshAccessToken(tokens.refresh_token);
       accessToken = newTokens.access_token;
-      
+
       await supabase
         .from("oauth_tokens")
         .update({
@@ -154,13 +154,13 @@ serve(async (req) => {
     let totalFetched = 0;
 
     console.log(`Starting Outlook sync for account ${accountId}, max messages: ${maxMessages}`);
-    
+
     while (totalFetched < maxMessages) {
       checkTimeout();
-      
+
       const pageSize = Math.min(100, maxMessages - totalFetched); // Reduced from 500 to 100 to prevent WORKER_LIMIT
       let url = `https://graph.microsoft.com/v1.0/me/messages?$top=${pageSize}&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,bodyPreview,body,receivedDateTime,isRead,categories,hasAttachments,conversationId&$orderby=receivedDateTime desc`;
-      
+
       if (nextSkipToken) {
         url += `&$skiptoken=${nextSkipToken}`;
       }
@@ -168,7 +168,7 @@ serve(async (req) => {
       const outlookResponse = await retryWithBackoff(
         async () => {
           const response = await fetch(url, {
-            headers: { 
+            headers: {
               Authorization: `Bearer ${accessToken}`,
               'Content-Type': 'application/json'
             }
@@ -193,7 +193,7 @@ serve(async (req) => {
       );
 
       const data = await outlookResponse.json();
-      
+
       if (!data.value || data.value.length === 0) {
         console.log("No more messages to fetch");
         break;
@@ -201,7 +201,7 @@ serve(async (req) => {
 
       allMessages.push(...data.value);
       totalFetched += data.value.length;
-      
+
       console.log(`Fetched ${data.value.length} messages (total: ${totalFetched})`);
 
       if (!data['@odata.nextLink']) {
@@ -283,7 +283,7 @@ serve(async (req) => {
               updated_at: new Date().toISOString(),
             })
             .eq("id", syncJob.id);
-          
+
           console.log(`Progress: ${syncedCount}/${allMessages.length} messages synced`);
         }
       } catch (error) {
@@ -321,16 +321,16 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Sync error:", error);
-    
+
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
+
     if (accountId) {
       try {
         const supabase = createClient(
           Deno.env.get("SUPABASE_URL") ?? "",
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
         );
-        
+
         const { data: jobs } = await supabase
           .from("sync_jobs")
           .select("id")
@@ -354,10 +354,14 @@ serve(async (req) => {
       }
     }
 
+    const isAuthError = errorMessage.includes("Failed to refresh token") ||
+      errorMessage.includes("invalid_grant") ||
+      errorMessage.includes("unauthorized_client");
+
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {
-        status: 500,
+        status: isAuthError ? 401 : 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );

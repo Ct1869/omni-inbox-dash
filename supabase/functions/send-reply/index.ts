@@ -126,7 +126,7 @@ serve(async (req) => {
             }),
           }
         );
-        
+
         // Update local cache
         await supabase
           .from('cached_messages')
@@ -134,7 +134,7 @@ serve(async (req) => {
           .eq('message_id', msgId)
           .eq('account_id', accountId);
       }
-      
+
       return new Response(
         JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -182,13 +182,13 @@ serve(async (req) => {
     // Handle delete action (bulk or single)
     if (action === "delete") {
       const idsToDelete = messageIds || [messageId];
-      
+
       if (idsToDelete.length === 0) {
         throw new Error("No message IDs provided");
       }
 
       console.log(`Deleting ${idsToDelete.length} messages for account ${accountId}`);
-      
+
       // Get all messages to delete
       const { data: msgs, error: fetchError } = await supabase
         .from("cached_messages")
@@ -253,10 +253,10 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           deleted: successIds.length,
-          failed: results.length - successIds.length 
+          failed: results.length - successIds.length
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -296,8 +296,8 @@ serve(async (req) => {
     } else if (replyText) {
       // Reply
       to = originalMessage.sender_email;
-      subject = originalMessage.subject?.startsWith("Re:") 
-        ? originalMessage.subject 
+      subject = originalMessage.subject?.startsWith("Re:")
+        ? originalMessage.subject
         : `Re: ${originalMessage.subject || "(no subject)"}`;
       body = `
         <p>${replyText.replace(/\n/g, "<br>")}</p>
@@ -353,9 +353,15 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Send reply error:", error);
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isAuthError = errorMessage.includes("Failed to refresh token") ||
+      errorMessage.includes("invalid_grant") ||
+      errorMessage.includes("unauthorized_client");
+
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: errorMessage }),
+      { status: isAuthError ? 401 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
