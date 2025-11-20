@@ -245,7 +245,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
         setIsLoading(true);
         let query = supabase
           .from('email_accounts')
-          .select('id, name, email, unread_count, provider, picture_url')
+          .select('id, name, email, unread_count, provider, picture_url, is_active')
           .order('created_at', { ascending: false });
         
         if (provider) {
@@ -261,6 +261,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
           unreadCount: a.unread_count ?? 0,
           provider: a.provider,
           picture_url: a.picture_url,
+          isActive: a.is_active ?? true,
         }));
         setAccounts(mapped);
       } catch (err) {
@@ -628,6 +629,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                   const isSyncFailed = syncStatus?.status === "failed";
                   const isGmail = account.provider === 'gmail';
                   const isSyncingThis = syncingAccounts.has(account.id);
+                  const isInactive = account.isActive === false;
 
                   return (
                     <div
@@ -641,6 +643,15 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                       />
                       <button
                         onClick={() => {
+                          if (isInactive) {
+                            toast.error("Please reconnect this account first", {
+                              action: {
+                                label: "Reconnect",
+                                onClick: () => account.provider === 'gmail' ? onConnectGmail() : onConnectOutlook()
+                              }
+                            });
+                            return;
+                          }
                           if (account.provider === 'gmail') {
                             navigate(`/dashboard/gmail/${account.id}`);
                           } else if (account.provider === 'outlook') {
@@ -650,6 +661,7 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                         }}
                         className={cn(
                           "flex-1 flex items-center gap-2 px-2 py-2 rounded-md transition-colors",
+                          isInactive && "opacity-60",
                           selectedAccount?.id === account.id
                             ? "bg-muted/50 text-foreground"
                             : "hover:bg-muted/30"
@@ -670,10 +682,40 @@ const AccountsSidebar = ({ selectedAccount, onSelectAccount, onConnectGmail, onC
                         </Avatar>
                         <div className="flex-1 text-left min-w-0 overflow-hidden pr-1">
                           <div className="font-medium text-sm truncate">{account.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{account.email}</div>
+                          <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                            {account.email}
+                            {isInactive && (
+                              <Badge variant="destructive" className="ml-1 text-[10px] px-1 py-0">
+                                Disconnected
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         
                         <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+                          {isInactive && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs px-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      account.provider === 'gmail' ? onConnectGmail() : onConnectOutlook();
+                                    }}
+                                  >
+                                    <RefreshCw className="h-3 w-3 mr-1" />
+                                    Reconnect
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">OAuth token expired. Click to reconnect.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {/* Sync status indicator with detailed tooltips */}
                           {isAccountSyncing && (
                             <TooltipProvider>

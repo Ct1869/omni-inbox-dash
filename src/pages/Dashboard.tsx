@@ -18,6 +18,7 @@ export interface Account {
   unreadCount: number;
   provider?: 'gmail' | 'outlook';
   picture_url?: string | null;
+  isActive?: boolean;
 }
 
 export interface Message {
